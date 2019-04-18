@@ -28,7 +28,7 @@ And you will be the first one to be notified as soon as the show is available
 ```
 
 To check for shows one can run similar commands:<br />
-`./BookMyShow.py --movie "Avengers: Endgame" --cinema "PVR Forum Mall Koramangala" --date "20190426" --regionCode="BANG"`
+`./BookMyShow.py --movie "Avengers: Endgame" --cinema "PVR Forum Mall Koramangala" --date "20190426" --regionCode "BANG"`
 
 ---
 
