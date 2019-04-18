@@ -7,6 +7,7 @@ import sys
 from bs4 import BeautifulSoup
 from sys import exit
 from time import time
+from time import sleep
 from re import sub as reSub
 from datetime import datetime
 from json import loads
@@ -133,7 +134,7 @@ class BookMyShow( object ):
 
     def checkCinemaAvailability( self, cinemaLink, movieName ):
         '''
-        Rings a bell if a show is available in your requested cinema
+        Notifies if a show is available in your requested cinema
         '''
         cinemaDetails = self.ss.get( cinemaLink )
         assert cinemaDetails.status_code == 200
@@ -157,9 +158,11 @@ class BookMyShow( object ):
         if found:
             # Movie tickets are now available
             print( "HURRAY! Movie tickets are now available" )
-            self.ringBell()
+            # self.ringBell()
+            return True
         else:
             print( "Movie tickets aren't available yet" )
+            return False
         
     def checkMovie( self, name ):
         movieLink = self.search( name )
@@ -171,30 +174,43 @@ class BookMyShow( object ):
         cinemaLink = self.search( name, typeName="Venues" )
         if cinemaLink is None:
             exit( 0 )
-        self.checkCinemaAvailability( cinemaLink, movieName )
+        return self.checkCinemaAvailability( cinemaLink, movieName )
 
 def parser():
     parser = ArgumentParser( prog=sys.argv[ 0 ],
-                                      description="A script to check if tickets are available for the movie in the specified cinema at a given date",
-                                      epilog="And you will be the first one to be notified as soon as the show is available" )
+                             description="A script to check if tickets are available for the movie in the specified cinema at a given date",
+                             epilog="And you will be the first one to be notified as soon as the show is available" )
     parser.add_argument( '-m', '--movie', required=True, action='store', type=str, help="The movie you're looking to book tickets for" )
     parser.add_argument( '-c', '--cinema', required=True, action='store', type=str, help="The cinema in which you want to watch the movie" )
-    parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="The date on which you want to book tickets. Format: YYYYMMDD" )
+    parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="Format: YYYYMMDD | The date on which you want to book tickets." )
     parser.add_argument( '-r', '--regionCode', required=True, action='store', type=str, help="The region code of your area; BANG for Bengaluru" )
+    parser.add_argument( '-i', '--interval', action='store', type=int, help="BMS server will be queried every interval seconds", default=60 )
     args = parser.parse_args()
     return args
 
 if __name__ == "__main__":
     args = parser()
-    retry = 0
-    while retry < 5:
-        try:
-            bms = BookMyShow( regionCode=args.regionCode, date=args.date )
-            bms.checkCinema( name=args.cinema, movieName=args.movie )
-            break
-        except AssertionError:
-            print( "Seems like we lost the connection mid-way, will retry..." )
-            retry += 1
-        except:
-            print( "Something unexpected happened; Recommended to re-run this script with correct values" )
-            break
+    interval = args.interval
+    status = False
+    while not status:
+        start = time()
+        retry = 0
+        while retry < 5:
+            # only retry for some time on connectivity issues
+            try:
+                bms = BookMyShow( regionCode=args.regionCode, date=args.date )
+                status = bms.checkCinema( name=args.cinema, movieName=args.movie )
+                break
+            except AssertionError:
+                print( "Seems like we lost the connection mid-way, will retry..." )
+                retry += 1
+            except KeyboardInterrupt:
+                sys.exit( 1 )
+            except:
+                print( "Something unexpected happened; Recommended to re-run this script with correct values" )
+                break
+        if not status:
+            stop = time()
+            timeRemaining = interval - ( stop - start )
+            timeRemaining = int( round( timeRemaining if timeRemaining > 0 else 0 ) )
+            sleep( timeRemaining )
