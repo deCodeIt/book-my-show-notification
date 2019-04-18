@@ -2,6 +2,7 @@
 
 import requests
 import pdb
+import sys
 
 from bs4 import BeautifulSoup
 from sys import exit
@@ -13,6 +14,7 @@ from sys import stdout
 from os import system
 from random import randint
 from random import randrange
+from argparse import ArgumentParser
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -171,6 +173,28 @@ class BookMyShow( object ):
             exit( 0 )
         self.checkCinemaAvailability( cinemaLink, movieName )
 
+def parser():
+    parser = ArgumentParser( prog=sys.argv[ 0 ],
+                                      description="A script to check if tickets are available for the movie in the specified cinema at a given date",
+                                      epilog="And you will be the first one to be notified as soon as the show is available" )
+    parser.add_argument( '-m', '--movie', required=True, action='store', type=str, help="The movie you're looking to book tickets for" )
+    parser.add_argument( '-c', '--cinema', required=True, action='store', type=str, help="The cinema in which you want to watch the movie" )
+    parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="The date on which you want to book tickets. Format: YYYYMMDD" )
+    parser.add_argument( '-r', '--regionCode', required=True, action='store', type=str, help="The region code of your area; BANG for Bengaluru" )
+    args = parser.parse_args()
+    return args
+
 if __name__ == "__main__":
-    bms = BookMyShow( regionCode="BANG", date="20190427" )
-    bms.checkCinema( name="PVR Forum Mall Koramangala", movieName="Avengers: Endgame" )
+    args = parser()
+    retry = 0
+    while retry < 5:
+        try:
+            bms = BookMyShow( regionCode=args.regionCode, date=args.date )
+            bms.checkCinema( name=args.cinema, movieName=args.movie )
+            break
+        except AssertionError:
+            print( "Seems like we lost the connection mid-way, will retry..." )
+            retry += 1
+        except:
+            print( "Something unexpected happened; Recommended to re-run this script with correct values" )
+            break
