@@ -9,6 +9,10 @@ from time import time
 from re import sub as reSub
 from datetime import datetime
 from json import loads
+from sys import stdout
+from os import system
+from random import randint
+from random import randrange
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -20,6 +24,14 @@ class BookMyShow( object ):
         self.date = date
         self.ss = requests.session()
         self.setRegionDetails( regionCode )
+
+    def ringBell( self ):
+        totalDuration = 0.0
+        while totalDuration < 10.0:
+            duration = 1.0 / randint(5,10)  # seconds
+            freq = randrange( 200, 2000, 200 )  # Hz
+            system('play --no-show-progress --null --channels 1 synth {} sine {}'.format(duration, freq))
+            totalDuration += duration
 
     def setRegionDetails( self, regionCode ):
         '''
@@ -145,6 +157,7 @@ class BookMyShow( object ):
         if found:
             # Movie tickets are now available
             print( "HURRAY! Movie tickets are now available" )
+            self.ringBell()
         else:
             print( "Movie tickets aren't available yet" )
         
@@ -163,5 +176,4 @@ class BookMyShow( object ):
 if __name__ == "__main__":
     bms = BookMyShow( regionCode="BANG", date="20190419" )
     # bms.check( name="Avengers: Endgame" )
-    # bms.checkMovie( name="hellboy" )
     bms.checkCinema( name="PVR Forum Mall Koramangala", movieName="The Curse Of The Weeping Woman" )
