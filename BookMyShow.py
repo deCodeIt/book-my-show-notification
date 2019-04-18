@@ -58,13 +58,21 @@ class BookMyShow( object ):
 
         movieUrl = self.getMovieUrl( movieData )
         return movieUrl
+    
+    def checkAvailability( self, movieLink ):
+        '''
+        movieLink refers to moviePage where we have information about the movie, the cast and other stuff
+        '''
+        pass
 
     def check( self, name ):
         movieLink = self.search( name )
         if movieLink is None:
             exit( 0 )
+        self.checkAvailability( movieLink )
 
 if __name__ == "__main__":
     bms = BookMyShow()
     # bms.check( name="Avengers: Endgame" )
-    bms.check( name="captain marvel" )
+    bms.check( name="hellboy" )
+    # https://in.bookmyshow.com/serv/getData/?cmd=GETREGIONS&t=2019041817 for location
