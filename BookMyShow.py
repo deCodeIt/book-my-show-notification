@@ -53,11 +53,11 @@ class BookMyShow( object ):
         
         # Check if show is on
         if movieData.get( 'SHOWDATE' ) is None:
-            print( "The counters are yet to be opened!" )
+            print( "The show counters are yet to be opened!" )
             return None
 
         movieUrl = self.getMovieUrl( movieData )
-        pdb.set_trace()
+        return movieUrl
 
     def check( self, name ):
         movieLink = self.search( name )
