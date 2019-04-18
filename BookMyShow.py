@@ -68,7 +68,6 @@ class BookMyShow( object ):
         movieUrl += movieData.get( 'ID' )
         movieUrl += "-MT/"
         movieUrl += curDate
-        print( movieUrl )
         return movieUrl
 
     def getCinemaUrl( self, cinemaData ):
@@ -87,7 +86,6 @@ class BookMyShow( object ):
         cinemaUrl += cinemaData.get( 'ID' )
         cinemaUrl += "-MT/"
         cinemaUrl += curDate
-        print( cinemaUrl )
         return cinemaUrl
 
     def getUrlDataJSON( self, searchTerm ):
@@ -174,6 +172,5 @@ class BookMyShow( object ):
         self.checkCinemaAvailability( cinemaLink, movieName )
 
 if __name__ == "__main__":
-    bms = BookMyShow( regionCode="BANG", date="20190419" )
-    # bms.check( name="Avengers: Endgame" )
-    bms.checkCinema( name="PVR Forum Mall Koramangala", movieName="The Curse Of The Weeping Woman" )
+    bms = BookMyShow( regionCode="BANG", date="20190427" )
+    bms.checkCinema( name="PVR Forum Mall Koramangala", movieName="Avengers: Endgame" )
