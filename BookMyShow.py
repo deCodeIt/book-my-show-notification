@@ -33,12 +33,20 @@ class BookMyShow( object ):
         cmd = 'ntfy -t "{0}" send "{1}"'.format(title, message)
         system(cmd)
 
-    def ringBell( self ):
+    def ringSineBell( self ):
         totalDuration = 0.0
         while totalDuration < 10.0:
             duration = 1.0 / randint(5,10)  # seconds
             freq = randrange( 200, 2000, 200 )  # Hz
             system('play --no-show-progress --null --channels 1 synth {} sine {}'.format(duration, freq))
+            totalDuration += duration
+
+    def ringBell( self ):
+        totalDuration = 0.0
+        while totalDuration < 10.0:
+            duration = 1.0 / randint(5,10)  # seconds
+            print( '\a', end="\r" )
+            sleep( duration )
             totalDuration += duration
 
     def setRegionDetails( self, regionCode ):
@@ -165,7 +173,7 @@ class BookMyShow( object ):
             # Movie tickets are now available
             print( "HURRAY! Movie tickets are now available" )
             self.notification( "Hurray!", "Tickets for " + movieName + " at " + self.title + " are now available" )
-            # self.ringBell()
+            self.ringBell()
             return True
         else:
             print( "Movie tickets aren't available yet" )
