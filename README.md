@@ -8,6 +8,10 @@ A python script to notify as soon as tickets for a given show are available on B
 Install dependencies using:<br />
 `pip3 install -r requirements.txt`
 
+---
+
+### Usage
+
 There are multiple fields required while running the script:
 ```
 usage: ./BookMyShow.py [-h] -m MOVIE -c CINEMA -d DATE -r REGIONCODE [-i INTERVAL]
