@@ -26,7 +26,12 @@ class BookMyShow( object ):
         regionCode = regionCode.upper()
         self.date = date
         self.ss = requests.session()
+        self.title = ''
         self.setRegionDetails( regionCode )
+
+    def notification( self, title, message ):
+        cmd = 'ntfy -t "{0}" send "{1}"'.format(title, message)
+        system(cmd)
 
     def ringBell( self ):
         totalDuration = 0.0
@@ -123,6 +128,7 @@ class BookMyShow( object ):
             url = self.getMovieUrl( data )
         elif typeName == "Venues":
             url = self.getCinemaUrl( data )
+        self.title = data.get( 'TITLE', '' )
 
         return url
     
@@ -158,6 +164,7 @@ class BookMyShow( object ):
         if found:
             # Movie tickets are now available
             print( "HURRAY! Movie tickets are now available" )
+            self.notification( "Hurray!", "Tickets for " + movieName + " at " + self.title + " are now available" )
             # self.ringBell()
             return True
         else:
@@ -206,7 +213,7 @@ if __name__ == "__main__":
                 retry += 1
             except KeyboardInterrupt:
                 sys.exit( 1 )
-            except:
+            except Exception as e:
                 print( "Something unexpected happened; Recommended to re-run this script with correct values" )
                 break
         if not status:
