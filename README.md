@@ -41,4 +41,6 @@ To check for shows one can run similar commands:<br />
 ### Caveats
 There are known issues when using desktop notification with `tmux`. It's highly recommended **not** to run this script inside tmux if you want desktop notifications.
 
-Hope you get your tickets for the movie as soon as possible
+---
+
+#### Hope you will be the first one to grab a ticket
