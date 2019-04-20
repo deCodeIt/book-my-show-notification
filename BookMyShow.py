@@ -22,12 +22,15 @@ def getObject():
 
 class BookMyShow( object ):
 
-    def __init__( self, regionCode='BANG', date=None ):
-        regionCode = regionCode.upper()
-        self.date = date
+    def __init__( self, args ):
+        self.args = args
+        self.regionCode = self.args.regionCode.upper()
+        self.date = self.args.date
+        self.cinema = self.args.cinema
+        self.movie = self.args.movie
         self.ss = requests.session()
         self.title = ''
-        self.setRegionDetails( regionCode )
+        self.setRegionDetails( self.regionCode )
 
     def notification( self, title, message ):
         cmd = 'ntfy -t "{0}" send "{1}"'.format(title, message)
@@ -185,11 +188,11 @@ class BookMyShow( object ):
             exit( 0 )
         self.checkAvailability( movieLink )
 
-    def checkCinema( self, name, movieName ):
-        cinemaLink = self.search( name, typeName="Venues" )
+    def checkCinema( self ):
+        cinemaLink = self.search( self.cinema, typeName="Venues" )
         if cinemaLink is None:
             exit( 0 )
-        return self.checkCinemaAvailability( cinemaLink, movieName )
+        return self.checkCinemaAvailability( cinemaLink, self.movie )
 
 def parser():
     parser = ArgumentParser( prog=sys.argv[ 0 ],
@@ -213,8 +216,8 @@ if __name__ == "__main__":
         while retry < 5:
             # only retry for some time on connectivity issues
             try:
-                bms = BookMyShow( regionCode=args.regionCode, date=args.date )
-                status = bms.checkCinema( name=args.cinema, movieName=args.movie )
+                bms = BookMyShow( args )
+                status = bms.checkCinema()
                 break
             except AssertionError:
                 print( "Seems like we lost the connection mid-way, will retry..." )
