@@ -302,11 +302,11 @@ if __name__ == "__main__":
         retry = 0
         while retry < 60:
             # only retry for some time on connectivity issues
-            bms = BookMyShow( args )
-            status = bms.checkCinema()
+            # bms = BookMyShow( args )
+            # status = bms.checkCinema()
             try:
-                # bms = BookMyShow( args )
-                # status = bms.checkCinema()
+                bms = BookMyShow( args )
+                status = bms.checkCinema()
                 break
             except AssertionError:
                 print( "Seems like we lost the connection mid-way, will retry..." )
