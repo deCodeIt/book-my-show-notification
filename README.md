@@ -29,6 +29,8 @@ optional arguments:
                         The region code of your area; BANG for Bengaluru
   -i INTERVAL, --interval INTERVAL
                         BMS server will be queried every interval seconds
+  -b ACCESS_TOKEN [DEVICE_ID ...], --pushBullet ACCESS_TOKEN [DEVICE_ID ...]
+                        Send notification to your device using pushbullet
 
 And you will be the first one to be notified as soon as the show is available
 ```
