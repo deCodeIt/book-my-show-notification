@@ -20,23 +20,20 @@ from argparse import ArgumentParser
 from argparse import Action
 from os.path import expanduser
 from os.path import exists
+from threading import Thread
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
 
-class BookMyShow( object ):
-
-    def __init__( self, args ):
+class NotificationThread( Thread ):
+    def __init__( self, title, message, args ):
+        Thread.__init__( self )
+        self.title = title
+        self.message = message
         self.args = args
-        self.regionCode = self.args.regionCode.upper()
-        self.date = self.args.date
-        self.cinema = self.args.cinema
-        self.movie = self.args.movie
-        self.ss = requests.session()
-        self.title = ''
-        self.setRegionDetails( self.regionCode )
+        self.interval = 10 # will show desktop notification at this intervals ( seconds )
 
-    def notification( self, title, message ):
+    def run( self ):
         if self.args.pushBullet:
             token = self.args.pushBullet[ 0 ]
             if len( self.args.pushBullet ) > 1:
@@ -53,13 +50,37 @@ class BookMyShow( object ):
                     if device is not None:
                         ntfyFile.write( ', "device_iden": "' + device + '"' )
                     ntfyFile.write( '}' )
-                cmd = 'ntfy -t "{0}" send "{1}"'.format( title, message)
+                cmd = 'ntfy -t "{0}" send "{1}"'.format( self.title, self.message)
                 system( cmd )
             if exists( configFilePath ):
                 # we don't need this config anymore
                 remove( configFilePath )
-        cmd = 'ntfy -t "{0}" send "{1}"'.format( title, message)
-        system( cmd )
+        while True:
+            # Keep on sending desktop notifications till the program is closed
+            start = time()
+            cmd = 'ntfy -t "{0}" send "{1}"'.format( self.title, self.message)
+            system( cmd )
+            stop = time()
+            timeRemaining = self.interval - ( stop - start )
+            timeRemaining = int( round( timeRemaining if timeRemaining > 0 else 0 ) )
+            sleep( timeRemaining )
+        
+class BookMyShow( object ):
+
+    def __init__( self, args ):
+        self.args = args
+        self.regionCode = self.args.regionCode.upper()
+        self.date = self.args.date
+        self.cinema = self.args.cinema
+        self.movie = self.args.movie
+        self.ss = requests.session()
+        self.title = ''
+        self.setRegionDetails( self.regionCode )
+
+    def notification( self, title, message ):
+        nThread = NotificationThread( title, message, self.args )
+        nThread.start()
+        # the thread will run till eternity or unless terminated using Ctrl-C
 
     def ringSineBell( self ):
         totalDuration = 0.0
@@ -241,9 +262,11 @@ if __name__ == "__main__":
         retry = 0
         while retry < 5:
             # only retry for some time on connectivity issues
+            bms = BookMyShow( args )
+            status = bms.checkCinema()
             try:
-                bms = BookMyShow( args )
-                status = bms.checkCinema()
+                # bms = BookMyShow( args )
+                # status = bms.checkCinema()
                 break
             except AssertionError:
                 print( "Seems like we lost the connection mid-way, will retry..." )
