@@ -13,9 +13,13 @@ from datetime import datetime
 from json import loads
 from sys import stdout
 from os import system
+from os import remove
 from random import randint
 from random import randrange
 from argparse import ArgumentParser
+from argparse import Action
+from os.path import expanduser
+from os.path import exists
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -33,8 +37,29 @@ class BookMyShow( object ):
         self.setRegionDetails( self.regionCode )
 
     def notification( self, title, message ):
-        cmd = 'ntfy -t "{0}" send "{1}"'.format(title, message)
-        system(cmd)
+        if self.args.pushBullet:
+            token = self.args.pushBullet[ 0 ]
+            if len( self.args.pushBullet ) > 1:
+                deviceList = self.args.pushBullet[ 1: ]
+            else:
+                # send to all devices
+                deviceList = [ None ]
+            configFilePath = expanduser( '~' ) + '/.ntfy.yml'
+            for device in deviceList:
+                with open( configFilePath, 'w+' ) as ntfyFile:
+                    # set up config to push to given device
+                    ntfyFile.write( 'backends: ["pushbullet"]\n' )
+                    ntfyFile.write( 'pushbullet: {"access_token": "' + token + '"' )
+                    if device is not None:
+                        ntfyFile.write( ', "device_iden": "' + device + '"' )
+                    ntfyFile.write( '}' )
+                cmd = 'ntfy -t "{0}" send "{1}"'.format( title, message)
+                system( cmd )
+            if exists( configFilePath ):
+                # we don't need this config anymore
+                remove( configFilePath )
+        cmd = 'ntfy -t "{0}" send "{1}"'.format( title, message)
+        system( cmd )
 
     def ringSineBell( self ):
         totalDuration = 0.0
@@ -203,6 +228,7 @@ def parser():
     parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="Format: YYYYMMDD | The date on which you want to book tickets." )
     parser.add_argument( '-r', '--regionCode', required=True, action='store', type=str, help="The region code of your area; BANG for Bengaluru" )
     parser.add_argument( '-i', '--interval', action='store', type=int, help="BMS server will be queried every interval seconds", default=60 )
+    parser.add_argument( '-b', '--pushBullet', action='store', metavar=( "ACCESS_TOKEN", "DEVICE_ID" ), type=str, nargs='+', help="Send notification to your device using pushbullet" )
     args = parser.parse_args()
     return args
 
