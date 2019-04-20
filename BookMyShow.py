@@ -9,6 +9,7 @@ from sys import exit
 from time import time
 from time import sleep
 from re import sub as reSub
+from re import compile as reCompile
 from datetime import datetime
 from json import loads
 from sys import stdout
@@ -73,6 +74,7 @@ class BookMyShow( object ):
         self.date = self.args.date
         self.cinema = self.args.cinema
         self.movie = self.args.movie
+        self.format = self.args.format
         self.ss = requests.session()
         self.title = ''
         self.setRegionDetails( self.regionCode )
@@ -211,23 +213,60 @@ class BookMyShow( object ):
                 data = movieInfo
                 break
         movieName = data.get( 'TITLE', movieName )
-
-        # find if your requested cinema is in the list
-        found = False
-        for movieTitle in cinemaSoup.find_all( "strong" ):
-            if movieTitle.getText().strip().lower() == movieName.lower():
-                found = True
+        
+        scripts = cinemaSoup.find_all( "script" )
+        jsonMoviePattern = reCompile( "^\s*try\s+{\s+var\s+API\s+=\s+JSON.parse\(\"(.*)\"\);" )
+        jsonMovieFormats = {}
+        for script in scripts:
+            jsonMovieFormats = jsonMoviePattern.match( str( script.string ) )
+            if jsonMovieFormats:
+                jsonMovieFormats = jsonMovieFormats.groups()[ 0 ]
+                # now remove double slashes
+                jsonMovieFormats = jsonMovieFormats.replace( "\\", "" )
+                # now convert to json
+                jsonMovieFormats = loads( jsonMovieFormats )
                 break
+
+        # now see if your format is available
+        found = False
+        if jsonMovieFormats['BookMyShow']['Event']:
+            for event in jsonMovieFormats['BookMyShow']['Event']:
+                if event.get( 'EventTitle' ) == movieName:
+                    for eventFormat in event[ 'ChildEvents' ]:
+                        if self.format is None:
+                            # movie is available in any format
+                            found = True
+                            break
+                        elif eventFormat[ 'EventDimension' ] == self.format:
+                            # we found our format
+                            found = True
+                            break
+
+        # string to print format if available
+        formatAvailable = ""
+        if self.format is not None:
+            formatAvailable = " in " + self.format
+
         if found:
             # Movie tickets are now available
-            print( "HURRAY! Movie tickets are now available" )
-            self.notification( "Hurray!", "Tickets for " + movieName + " at " + self.title + " are now available" )
+            print( "HURRAY! Movie tickets are now available" + formatAvailable )
+            self.notification( "Hurray!", "Tickets for " + movieName + " at " + self.title + " are now available" + formatAvailable )
             self.ringBell()
             return True
+        elif jsonMovieFormats['BookMyShow']['Event']:
+            # The requires format isn't available or the movie is yet to be released
+            availableFormats = [ eventFormat[ 'EventDimension' ] for eventFormat in event[ 'ChildEvents' ] for event in jsonMovieFormats['BookMyShow']['Event'] if event[ 'EventTitle' ] == movieName ]
+            if availableFormats:
+                print( "The available format(s) : " + ( ", ".join( availableFormats ) ) )
+                print( "Movie is not available in requested " + self.format + " format, will retry..." )
+                return False
+            else:
+                print( "Movie tickets aren't available yet, will retry..." )
+                return False
         else:
-            print( "Movie tickets aren't available yet" )
+            print( "Movie tickets aren't available yet, will retry..." )
             return False
-        
+
     def checkMovie( self, name ):
         movieLink = self.search( name )
         if movieLink is None:
@@ -246,6 +285,7 @@ def parser():
                              epilog="And you will be the first one to be notified as soon as the show is available" )
     parser.add_argument( '-m', '--movie', required=True, action='store', type=str, help="The movie you're looking to book tickets for" )
     parser.add_argument( '-c', '--cinema', required=True, action='store', type=str, help="The cinema in which you want to watch the movie" )
+    parser.add_argument( '-f', '--format', action='store', choices=[ "2D", "3D", "IMAX 2D", "IMAX 3D" ], type=str, help="Preferred format, if any" )
     parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="Format: YYYYMMDD | The date on which you want to book tickets." )
     parser.add_argument( '-r', '--regionCode', required=True, action='store', type=str, help="The region code of your area; BANG for Bengaluru" )
     parser.add_argument( '-i', '--interval', action='store', type=int, help="BMS server will be queried every interval seconds", default=60 )
@@ -262,11 +302,11 @@ if __name__ == "__main__":
         retry = 0
         while retry < 5:
             # only retry for some time on connectivity issues
-            # bms = BookMyShow( args )
-            # status = bms.checkCinema()
+            bms = BookMyShow( args )
+            status = bms.checkCinema()
             try:
-                bms = BookMyShow( args )
-                status = bms.checkCinema()
+                # bms = BookMyShow( args )
+                # status = bms.checkCinema()
                 break
             except AssertionError:
                 print( "Seems like we lost the connection mid-way, will retry..." )
@@ -277,7 +317,13 @@ if __name__ == "__main__":
                 print( "Something unexpected happened; Recommended to re-run this script with correct values" )
                 break
         if not status:
-            stop = time()
-            timeRemaining = interval - ( stop - start )
-            timeRemaining = int( round( timeRemaining if timeRemaining > 0 else 0 ) )
-            sleep( timeRemaining )
+            try:
+                stop = time()
+                timeRemaining = interval - ( stop - start )
+                timeRemaining = int( round( timeRemaining if timeRemaining > 0 else 0 ) )
+                sleep( timeRemaining )
+            except KeyboardInterrupt:
+                sys.exit( 1 )
+            except Exception as e:
+                print( "Something unexpected happened; Recommended to re-run this script with correct values" )
+                break
