@@ -24,6 +24,8 @@ optional arguments:
                         The movie you're looking to book tickets for
   -c CINEMA, --cinema CINEMA
                         The cinema in which you want to watch the movie
+  -f {2D,3D,IMAX 2D,IMAX 3D}, --format {2D,3D,IMAX 2D,IMAX 3D}
+                        Preferred format, if any
   -d DATE, --date DATE  Format: YYYYMMDD | The date on which you want to book tickets.
   -r REGIONCODE, --regionCode REGIONCODE
                         The region code of your area; BANG for Bengaluru

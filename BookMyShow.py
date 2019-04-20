@@ -300,7 +300,7 @@ if __name__ == "__main__":
     while not status:
         start = time()
         retry = 0
-        while retry < 5:
+        while retry < 60:
             # only retry for some time on connectivity issues
             bms = BookMyShow( args )
             status = bms.checkCinema()
