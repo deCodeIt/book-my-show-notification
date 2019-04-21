@@ -14,7 +14,9 @@ Install dependencies using:<br />
 
 There are multiple fields required while running the script:
 ```
-usage: ./BookMyShow.py [-h] -m MOVIE -c CINEMA -d DATE -r REGIONCODE [-i INTERVAL]
+usage: ./BookMyShow.py [-h] -m MOVIE -c CINEMA [-f {2D,3D,IMAX 2D,IMAX 3D}] -d
+                       DATE -r REGIONCODE [-i INTERVAL] [-a ALARM]
+                       [-b ACCESS_TOKEN [DEVICE_ID ...]]
 
 A script to check if tickets are available for the movie in the specified cinema at a given date
 
