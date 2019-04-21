@@ -22,6 +22,7 @@ from argparse import Action
 from os.path import expanduser
 from os.path import exists
 from threading import Thread
+from playsound import playsound
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -75,6 +76,7 @@ class BookMyShow( object ):
         self.cinema = self.args.cinema
         self.movie = self.args.movie
         self.format = self.args.format
+        self.alarm = self.args.alarm
         self.ss = requests.session()
         self.title = ''
         self.setRegionDetails( self.regionCode )
@@ -99,6 +101,17 @@ class BookMyShow( object ):
             print( '\a', end="\r" )
             sleep( duration )
             totalDuration += duration
+
+    def soundAlarm( self ):
+        if self.alarm is not None:
+            self.alarm = self.alarm.strip()
+            if self.alarm.find( "~" ) == 0:
+                # need to pass absolute path for home directory
+                self.alarm = expanduser( '~' ) + self.alarm[ 1: ]
+            while True:
+                playsound( self.alarm )
+        else:
+            self.ringBell()
 
     def setRegionDetails( self, regionCode ):
         '''
@@ -251,7 +264,7 @@ class BookMyShow( object ):
             # Movie tickets are now available
             print( "HURRAY! Movie tickets are now available" + formatAvailable )
             self.notification( "Hurray!", "Tickets for " + movieName + " at " + self.title + " are now available" + formatAvailable )
-            self.ringBell()
+            self.soundAlarm()
             return True
         elif jsonMovieFormats['BookMyShow']['Event']:
             # The requires format isn't available or the movie is yet to be released
@@ -289,6 +302,7 @@ def parser():
     parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="Format: YYYYMMDD | The date on which you want to book tickets." )
     parser.add_argument( '-r', '--regionCode', required=True, action='store', type=str, help="The region code of your area; BANG for Bengaluru" )
     parser.add_argument( '-i', '--interval', action='store', type=int, help="BMS server will be queried every interval seconds", default=60 )
+    parser.add_argument( '-a', '--alarm', action='store', type=str, help="Path to audio file that will play as an alarm when notified ( optional )" )
     parser.add_argument( '-b', '--pushBullet', action='store', metavar=( "ACCESS_TOKEN", "DEVICE_ID" ), type=str, nargs='+', help="Send notification to your device using pushbullet" )
     args = parser.parse_args()
     return args

@@ -8,6 +8,7 @@ html5lib==1.0.1
 idna==2.8
 ntfy==2.7.0
 pipreqs==0.4.9
+playsound==1.2.2
 pyobjc==5.2
 pyobjc-core==5.2
 pyobjc-framework-Accounts==5.2
