@@ -31,6 +31,8 @@ optional arguments:
                         The region code of your area; BANG for Bengaluru
   -i INTERVAL, --interval INTERVAL
                         BMS server will be queried every interval seconds
+  -a ALARM, --alarm ALARM
+                        Path to audio file that will play as an alarm when notified ( optional )
   -b ACCESS_TOKEN [DEVICE_ID ...], --pushBullet ACCESS_TOKEN [DEVICE_ID ...]
                         Send notification to your device using pushbullet
 
