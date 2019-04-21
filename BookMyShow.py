@@ -94,7 +94,7 @@ class BookMyShow( object ):
 
     def ringBell( self ):
         totalDuration = 0.0
-        while totalDuration < 10.0:
+        while totalDuration < 8 * 60 * 60: # 8 hours
             duration = 1.0 / randint(5,10)  # seconds
             print( '\a', end="\r" )
             sleep( duration )
@@ -315,6 +315,8 @@ if __name__ == "__main__":
                 sys.exit( 1 )
             except Exception as e:
                 print( "Something unexpected happened; Recommended to re-run this script with correct values" )
+                print( "Printing traceback:" )
+                print( e )
                 break
         if not status:
             try:
