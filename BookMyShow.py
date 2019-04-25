@@ -215,6 +215,9 @@ class BookMyShow( object ):
         Notifies if a show is available in your requested cinema
         '''
         cinemaDetails = self.ss.get( cinemaLink )
+        if not ( cinemaDetails.url == cinemaLink ):
+            print( "Counters haven't opened for specified date yet, retrying..." )
+            return False
         assert cinemaDetails.status_code == 200
         cinemaSoup = BeautifulSoup( cinemaDetails.content, 'html5lib' )
         # get movie name
@@ -274,10 +277,10 @@ class BookMyShow( object ):
                 print( "Movie is not available in requested " + self.format + " format, will retry..." )
                 return False
             else:
-                print( "Movie tickets aren't available yet, will retry..." )
+                print( "Movie tickets aren't available yet, retrying..." )
                 return False
         else:
-            print( "Movie tickets aren't available yet, will retry..." )
+            print( "Movie tickets aren't available yet, retrying..." )
             return False
 
     def checkMovie( self, name ):
