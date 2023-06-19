@@ -26,7 +26,7 @@ from threading import Thread
 from playsound import playsound
 from typing import List
 from bmsDecorator import debug
-from bmsTypes import Region, City
+from bmsTypes import BMSRegion, City, BMSVenue, Venue
 from collections import OrderedDict
 
 def getObject():
@@ -83,6 +83,7 @@ class BMS( object ):
         self.format = self.args.format
         self.alarm = self.args.alarm
         self.title = ''
+        self.city: City = None
         self.ss = requests.session()
         self.ss.headers.update(
             {
@@ -128,8 +129,36 @@ class BMS( object ):
                 playsound( self.alarm )
         else:
             self.ringBell()
+
+    def fetchVenues( self ) -> BMSVenue:
+        '''
+        Returns all available regions
+        '''
+        url = f"https://in.bookmyshow.com/pwa/api/de/venues?regionCode={self.city.RegionCode}&eventType=MT"
+        cmd = [
+            "curl",
+            "--http1.1",
+            "--user-agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            url
+        ]
+        data = subprocess.run( cmd, capture_output=True, text=True )
+        return BMSVenue.parse_raw( data.stdout )
+
+    def searchVenue( self, region: str ) -> List[Venue]:
+        venues = self.fetchVenues()
+        results = []
         
-    def fetchRegions( self ) -> Region:
+        for item in venues.BookMyShow.arrVenue:
+            if (
+                ( region.lower() in item.VenueCode.lower() ) or
+                ( region.lower() in item.VenueName.lower() )
+            ):
+                results.append(item)
+        
+        return results
+        
+    def fetchRegions( self ) -> BMSRegion:
         '''
         Returns all available regions
         '''
@@ -142,9 +171,9 @@ class BMS( object ):
             url
         ]
         data = subprocess.run( cmd, capture_output=True, text=True )
-        return Region.parse_raw( data.stdout )
+        return BMSRegion.parse_raw( data.stdout )
 
-    def searchRegion( self, region: str ):
+    def searchRegion( self, region: str ) -> List[City]:
         regions = self.fetchRegions()
         results = []
         
@@ -161,6 +190,9 @@ class BMS( object ):
         checkItem( regions.BookMyShow.OtherCities )
         
         return results
+    
+    def setRegion( self, city: City ):
+        self.city = city
 
     def getSearchUrl( self, searchTerm ):
         curTime = int( round( time() * 1000 ) )
@@ -359,7 +391,12 @@ if __name__ == "__main__":
             try:
                 bms = BMS( args )
                 region = bms.searchRegion( args.regionCode )[ 0 ]
-                status = bms.checkCinema()
+                region = [ item.RegionCode.lower() for item in region ]
+                bms.setRegion( region )
+                venue = bms.searchVenue( args.cinema )[ 0 ]
+                print( 'Venue', venue )
+                # status = bms.checkCinema()
+                sys.exit( 1 )
                 break
             except AssertionError:
                 print( "Seems like we lost the connection mid-way, will retry..." )
