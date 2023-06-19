@@ -259,7 +259,7 @@ class BMS( object ):
         movieUrl += curDate
         return movieUrl
     
-    def fetchCinemaPage( self ):
+    def fetchCinemaPage( self ) -> BeautifulSoup:
         '''
         Returns all available regions
         '''
@@ -272,7 +272,7 @@ class BMS( object ):
             url
         ]
         data = subprocess.run( cmd, capture_output=True, text=True )
-        return BMSRegion.parse_raw( data.stdout )
+        return BeautifulSoup( data.stdout, 'html5lib' )
 
     def getUrlDataJSON( self, searchTerm ):
         '''
@@ -292,10 +292,9 @@ class BMS( object ):
         '''
         Notifies if a show is available in your requested cinema
         '''
-        cinemaDetails = self.fetchCinemaPage()
-        cinemaSoup = BeautifulSoup( cinemaDetails.content, 'html5lib' )
+        cinemaSoup = self.fetchCinemaPage()
         scripts = cinemaSoup.find_all( "script" )
-        jsonMoviePattern = reCompile( "^\s*try\s+{\s+var\s+API\s+=\s+JSON.parse\(\"(.*)\"\);" )
+        jsonMoviePattern = reCompile( "^\s*var\s+UAPI\s+=\s+JSON.parse\(\"(.*)\"\);" )
         jsonMovieFormats = {}
         for script in scripts:
             jsonMovieFormats = jsonMoviePattern.match( str( script.string ) )
@@ -308,6 +307,8 @@ class BMS( object ):
                 break
             
         print( "JSON Movie Format", jsonMovieFormats )
+        
+        sys.exit( 1 )
 
         # now see if your format is available
         found = False
