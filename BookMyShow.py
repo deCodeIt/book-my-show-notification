@@ -313,7 +313,7 @@ class BMS( object ):
         found = False
         if jsonMovieFormats['BookMyShow']['Event']:
             for event in jsonMovieFormats['BookMyShow']['Event']:
-                if self.movie in event.get( 'EventTitle' ):
+                if self.movie.lower() in event.get( 'EventTitle' ).lower():
                     for eventFormat in event[ 'ChildEvents' ]:
                         if self.format is None:
                             # movie is available in any format
@@ -337,7 +337,7 @@ class BMS( object ):
             return True
         elif jsonMovieFormats['BookMyShow']['Event']:
             # The requires format isn't available or the movie is yet to be released
-            availableFormats = [ eventFormat[ 'EventDimension' ] for eventFormat in event[ 'ChildEvents' ] for event in jsonMovieFormats['BookMyShow']['Event'] if self.movie in event[ 'EventTitle' ] ]
+            availableFormats = [ eventFormat[ 'EventDimension' ] for eventFormat in event[ 'ChildEvents' ] for event in jsonMovieFormats['BookMyShow']['Event'] if self.movie.lower() in event[ 'EventTitle' ].lower() ]
             if availableFormats:
                 print( "The available format(s) : " + ( ", ".join( availableFormats ) ) )
                 print( "Movie is not available in requested " + self.format + " format, will retry..." )
