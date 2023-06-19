@@ -292,7 +292,7 @@ class BMS( object ):
                 # now remove double slashes
                 jsonMovieFormats = jsonMovieFormats.replace( "\\", "" )
                 # now convert to json
-                jsonMovieFormats = loads( jsonMovieFormats )
+                jsonMovieFormats = CinemaPageApiResponse.parse_raw( jsonMovieFormats )
                 break
         
         # now see if your format is available
