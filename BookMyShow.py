@@ -244,46 +244,35 @@ class BMS( object ):
     def setRegion( self, city: City ):
         self.city = city
 
-    def getSearchUrl( self, searchTerm ):
-        curTime = int( round( time() * 1000 ) )
-        url = "https://in.bookmyshow.com/quickbook-search.bms?d[mrs]=&d[mrb]=&cat=&_=" + str( curTime ) + "&q=" + searchTerm.replace( " ", "+" ) + "&sz=8&st=ON&em=&lt=&lg=&r=" + self.regionData.get( "code" ) + "&sr="
-        return url
-
-    def getMovieUrl( self, movieData ):
-        '''
-        `movieData` is similar to below:
-
-        {'ST': 'NS', 'GRP': 'Event', 'IS_NEW': False, 'L_URL': '', 'DESC': ['Chris Evans', ' Robert Downey Jr.'], 'CODE': 'EG00068832', 'REGION_SLUG': '', 'EVENTSTRTAGS': [], 'IS_TREND': False, 'RATING': '', 'WTS': '9,14,847', 'TITLE': 'Avengers: Endgame', 'ID': 'ET00090482', 'TYPE': 'MT', 'TYPE_NAME': 'Movies', 'CAT': ''}
-        '''
+    def getCinemaUrl( self ):
 
         curDate = datetime.now().strftime("%Y%m%d") if self.date is None else self.date
-        movieName = reSub('[^0-9a-zA-Z ]+', '', movieData.get('TITLE') ).lower().replace( " ", "-" )
+        venueName = reSub('[^0-9a-zA-Z ]+', '', self.cinema.VenueName ).lower().replace( " ", "-" )
 
         movieUrl = "https://in.bookmyshow.com/buytickets/"
-        movieUrl += movieName
-        movieUrl += "-" + self.regionData.get( 'alias' ) + "/movie-" + self.regionData.get( 'code' ).lower() + "-"
-        movieUrl += movieData.get( 'ID' )
+        movieUrl += venueName
+        movieUrl += "/cinema-"
+        movieUrl += self.city.RegionCode.lower()
+        movieUrl += "-"
+        movieUrl += self.cinema.VenueCode
         movieUrl += "-MT/"
         movieUrl += curDate
         return movieUrl
-
-    def getCinemaUrl( self, cinemaData ):
+    
+    def fetchCinemaPage( self ):
         '''
-        `cinemaData` is similar to below:
-
-        {"CC":"PVR","ST":"NS","REGION_SLUG":"","GRP":"Venue","EVENTSTRTAGS":[],"RATING":"","L_URL":"","WTS":"","TITLE":"PVR: Forum Mall, Koramangala","ID":"PVBN","TYPE_NAME":"Venues","TYPE":"|MT|","CAT":""}
+        Returns all available regions
         '''
-
-        curDate = datetime.now().strftime("%Y%m%d") if self.date is None else self.date
-        cinemaName = reSub('[^0-9a-zA-Z ]+', '', cinemaData.get('TITLE') ).lower().replace( " ", "-" )
-
-        cinemaUrl = "https://in.bookmyshow.com/buytickets/"
-        cinemaUrl += cinemaName
-        cinemaUrl += "/cinema-" + self.regionData.get( 'code' ).lower() + "-"
-        cinemaUrl += cinemaData.get( 'ID' )
-        cinemaUrl += "-MT/"
-        cinemaUrl += curDate
-        return cinemaUrl
+        url = self.getCinemaUrl()
+        cmd = [
+            "curl",
+            "--http1.1",
+            "--user-agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            url
+        ]
+        data = subprocess.run( cmd, capture_output=True, text=True )
+        return BMSRegion.parse_raw( data.stdout )
 
     def getUrlDataJSON( self, searchTerm ):
         '''
@@ -299,54 +288,12 @@ class BMS( object ):
         jsonResp = data.json()
         return jsonResp
 
-    def search( self, searchTerm, typeName="Movies" ):
-        jsonResp = self.getUrlDataJSON( searchTerm )
-        # return the first hit belonging to typeName
-        data = {}
-        for movieInfo in jsonResp[ 'hits' ]:
-            if movieInfo.get( 'TYPE_NAME' ) == typeName:
-                data = movieInfo
-                break
-        
-        url = None
-        if typeName == "Movies":
-            if data.get( 'SHOWDATE' ) is None:
-                # Check if show is on
-                print( "The show counters are yet to be opened!" )
-                return None
-            url = self.getMovieUrl( data )
-        elif typeName == "Venues":
-            url = self.getCinemaUrl( data )
-        self.title = data.get( 'TITLE', '' )
-
-        return url
-    
-    def checkAvailability( self, movieLink ):
-        '''
-        movieLink refers to moviePage where we have information about the movie, the cast and other stuff
-        '''
-        pass
-
-    def checkCinemaAvailability( self, cinemaLink, movieName ):
+    def checkCinemaAvailability( self ):
         '''
         Notifies if a show is available in your requested cinema
         '''
-        cinemaDetails = self.ss.get( cinemaLink )
-        if not ( cinemaDetails.url == cinemaLink ):
-            print( "Counters haven't opened for specified date yet, retrying..." )
-            return False
-        assert cinemaDetails.status_code == 200
+        cinemaDetails = self.fetchCinemaPage()
         cinemaSoup = BeautifulSoup( cinemaDetails.content, 'html5lib' )
-        # get movie name
-        jsonRespOfMovies = self.getUrlDataJSON( movieName )
-        # return the first hit belonging to movieName
-        data = {}
-        for movieInfo in jsonRespOfMovies[ 'hits' ]:
-            if movieInfo.get( 'TYPE_NAME' ) == "Movies":
-                data = movieInfo
-                break
-        movieName = data.get( 'TITLE', movieName )
-        
         scripts = cinemaSoup.find_all( "script" )
         jsonMoviePattern = reCompile( "^\s*try\s+{\s+var\s+API\s+=\s+JSON.parse\(\"(.*)\"\);" )
         jsonMovieFormats = {}
@@ -359,12 +306,14 @@ class BMS( object ):
                 # now convert to json
                 jsonMovieFormats = loads( jsonMovieFormats )
                 break
+            
+        print( "JSON Movie Format", jsonMovieFormats )
 
         # now see if your format is available
         found = False
         if jsonMovieFormats['BookMyShow']['Event']:
             for event in jsonMovieFormats['BookMyShow']['Event']:
-                if event.get( 'EventTitle' ) == movieName:
+                if self.movie in event.get( 'EventTitle' ):
                     for eventFormat in event[ 'ChildEvents' ]:
                         if self.format is None:
                             # movie is available in any format
@@ -383,12 +332,12 @@ class BMS( object ):
         if found:
             # Movie tickets are now available
             print( "HURRAY! Movie tickets are now available" + formatAvailable )
-            self.notification( "Hurray!", "Tickets for " + movieName + " at " + self.title + " are now available" + formatAvailable )
+            self.notification( "Hurray!", "Tickets for " + self.movie + " at " + self.title + " are now available" + formatAvailable )
             self.soundAlarm()
             return True
         elif jsonMovieFormats['BookMyShow']['Event']:
             # The requires format isn't available or the movie is yet to be released
-            availableFormats = [ eventFormat[ 'EventDimension' ] for eventFormat in event[ 'ChildEvents' ] for event in jsonMovieFormats['BookMyShow']['Event'] if event[ 'EventTitle' ] == movieName ]
+            availableFormats = [ eventFormat[ 'EventDimension' ] for eventFormat in event[ 'ChildEvents' ] for event in jsonMovieFormats['BookMyShow']['Event'] if self.movie in event[ 'EventTitle' ] ]
             if availableFormats:
                 print( "The available format(s) : " + ( ", ".join( availableFormats ) ) )
                 print( "Movie is not available in requested " + self.format + " format, will retry..." )
@@ -399,18 +348,6 @@ class BMS( object ):
         else:
             print( "Movie tickets aren't available yet, retrying..." )
             return False
-
-    def checkMovie( self, name ):
-        movieLink = self.search( name )
-        if movieLink is None:
-            exit( 0 )
-        self.checkAvailability( movieLink )
-
-    def checkCinema( self ):
-        cinemaLink = self.search( self.cinema, typeName="Venues" )
-        if cinemaLink is None:
-            exit( 0 )
-        return self.checkCinemaAvailability( cinemaLink, self.movie )
 
 def parser():
     parser = ArgumentParser( prog=sys.argv[ 0 ],
@@ -431,22 +368,19 @@ if __name__ == "__main__":
     args = parser()
     interval = args.interval
     status = False
+    bms = BMS( args )
+    regions = bms.searchRegion( args.regionCode )
+    bms.chooseRegion( regions )
+    venues = bms.searchVenue( args.cinema )
+    bms.chooseVenue( venues )
+    print( 'Selected', bms.city, bms.cinema )
     while not status:
         start = time()
         retry = 0
         while retry < 60:
             # only retry for some time on connectivity issues
-            # bms = BookMyShow( args )
-            # status = bms.checkCinema()
             try:
-                bms = BMS( args )
-                regions = bms.searchRegion( args.regionCode )
-                bms.chooseRegion( regions )
-                venues = bms.searchVenue( args.cinema )
-                bms.chooseVenue( venues )
-                print( 'Selected', bms.city, bms.cinema )
-                # status = bms.checkCinema()
-                sys.exit( 1 )
+                status = bms.checkCinemaAvailability()
                 break
             except AssertionError:
                 print( "Seems like we lost the connection mid-way, will retry..." )
