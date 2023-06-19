@@ -5,6 +5,8 @@ A python script to notify as soon as tickets for a given show are available on B
 
 ### Dependencies
 
+Note that unnecessary requirements have creeped in because I didn't used a virtual environment. Will fix it in some time.
+
 Install dependencies using:<br />
 `pip3 install -r requirements.txt`
 
@@ -42,7 +44,8 @@ And you will be the first one to be notified as soon as the show is available
 ```
 
 To check for shows one can run similar commands:<br />
-`./BookMyShow.py --movie "Avengers: Endgame" --cinema "PVR Forum Mall Koramangala" --date "20190426" --regionCode "BANG" --format "IMAX 3D"`
+`./BookMyShow.py --movie "avengers" --cinema "pvr" --date "20190426" --regionCode "BANG" --format "3D"`  
+`./BookMyShow.py --movie "flash" --cinema "nexus" --date "20230619" --regionCode "BANG" --format "3D"`
 
 ---
 
