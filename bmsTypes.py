@@ -81,7 +81,7 @@ class Category(BaseModel):
     PriceCode: str
     AdditionalData: str
     CurPrice: str
-    UpdatedPrice: str
+    UpdatedPrice: str | None
     AreaCatCode: str
     AvailStatus: str
     BestAvailableSeats: str
@@ -95,7 +95,7 @@ class ShowTime(BaseModel):
     Attributes: str
     ApplicableTimeFilters: List[str]
     MinPrice: str
-    UpdatedMinPrice: str
+    UpdatedMinPrice: str | None
     SessionCopQuota: str
     SessionCodFlag: str
     CutOffDateTime: str
@@ -116,18 +116,18 @@ class ShowTime(BaseModel):
     SessionUnpaidQuota: str
     IsAtmosEnabled: str
     MaxPrice: str
-    UpdatedMaxPrice: str
-    Offers: str
+    UpdatedMaxPrice: str | None
+    Offers: str | None
     ApplicablePriceFilters: List[str]
     ShowTimeCode: str
     SessionSubTitle: str
     SessionSubTitleAcronym: str
 
 class EventGenre(BaseModel):
-    Action: List[str]
-    Adventure: List[str]
-    Fantasy: List[str]
-    GenreMeta: List[str]
+    Action: Optional[List[str]]
+    Adventure: Optional[List[str]]
+    Fantasy: Optional[List[str]]
+    GenreMeta: Optional[List[str]]
 
 class ChildEvent(BaseModel):
     Event_strIsDefault: Literal['Y', 'N']
@@ -164,8 +164,8 @@ class Event(BaseModel):
 
 class ShowDetail(BaseModel):
     Date: str
-    BMSOffers: str
+    BMSOffers: str | None
     Event: List[Event]
 
 class CinemaPageApiResponse(BaseModel):
-    ShowDetails: ShowDetail
+    ShowDetails: List[ShowDetail]

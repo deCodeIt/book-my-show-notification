@@ -12,7 +12,7 @@ from time import sleep
 from re import sub as reSub
 from re import compile as reCompile
 from datetime import datetime
-from json import loads
+from json import loads, dumps
 from sys import stdout
 from os import system
 from os import remove
@@ -297,8 +297,8 @@ class BMS( object ):
         
         # now see if your format is available
         found = False
-        if jsonMovieFormats:
-            for event in jsonMovieFormats.ShowDetails.Event:
+        if jsonMovieFormats and len( jsonMovieFormats.ShowDetails ) > 0:
+            for event in jsonMovieFormats.ShowDetails[ 0 ].Event:
                 if self.movie.lower() in event.EventTitle.lower():
                     for eventFormat in event.ChildEvents:
                         if self.format is None:
@@ -321,9 +321,9 @@ class BMS( object ):
             self.notification( "Hurray!", "Tickets for " + self.movie + " at " + self.title + " are now available" + formatAvailable )
             self.soundAlarm()
             return True
-        elif jsonMovieFormats.ShowDetails.Event:
+        elif len( jsonMovieFormats.ShowDetails ) > 0 and jsonMovieFormats.ShowDetails[ 0 ].Event:
             # The requires format isn't available or the movie is yet to be released
-            availableFormats = [ eventFormat.EventDimension for eventFormat in event.ChildEvents for event in jsonMovieFormats.ShowDetails.Event if self.movie.lower() in event.EventTitle.lower() ]
+            availableFormats = [ eventFormat.EventDimension for eventFormat in event.ChildEvents for event in jsonMovieFormats.ShowDetails[ 0 ].Event if self.movie.lower() in event.EventTitle.lower() ]
             if availableFormats:
                 print( "The available format(s) : " + ( ", ".join( availableFormats ) ) )
                 print( "Movie is not available in requested " + self.format + " format, will retry..." )
