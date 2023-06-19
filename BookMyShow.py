@@ -84,6 +84,7 @@ class BMS( object ):
         self.alarm = self.args.alarm
         self.title = ''
         self.city: City = None
+        self.cinema: Venue = None
         self.ss = requests.session()
         self.ss.headers.update(
             {
@@ -157,6 +158,32 @@ class BMS( object ):
                 results.append(item)
         
         return results
+    
+    def chooseVenue( self, venues: List[Venue] ) -> Venue:
+        if len( venues ) == 0:
+            print( "No venues found" )
+            sys.exit( 1 )
+        while True:
+            for index, venue in enumerate( venues, start=1 ):
+                print( f"{index}. {venue.VenueCode}: {venue.VenueName}" )
+                
+            choice = input("Enter the venue number of your choice (or 'q' to quit): ")
+        
+            if choice.lower() == 'q':
+                sys.exit( 1 )
+            
+            try:
+                choiceIdx = int( choice )
+                if 1 <= choiceIdx <= len( venues ):
+                    self.setVenue( venues[ choiceIdx - 1 ] )
+                    return venues[ choiceIdx - 1 ]
+                else:
+                    print("Invalid choice. Please enter a valid number.")
+            except ValueError:
+                print("Invalid input. Please enter a number or 'q' to quit.")
+                
+    def setVenue( self, cinema: Venue ):
+        self.cinema = cinema
         
     def fetchRegions( self ) -> BMSRegion:
         '''
@@ -190,6 +217,29 @@ class BMS( object ):
         checkItem( regions.BookMyShow.OtherCities )
         
         return results
+    
+    def chooseRegion( self, regions: List[City] ) -> City:
+        if len( regions ) == 0:
+            print( "No regions found" )
+            sys.exit( 1 )
+        while True:
+            for index, region in enumerate( regions, start=1 ):
+                print( f"{index}. {region.RegionCode}: {region.RegionName}" )
+                
+            choice = input("Enter the regions number of your choice (or 'q' to quit): ")
+        
+            if choice.lower() == 'q':
+                sys.exit( 1 )
+            
+            try:
+                choiceIdx = int( choice )
+                if 1 <= choiceIdx <= len( regions ):
+                    self.setRegion( regions[ choiceIdx - 1 ])
+                    return regions[ choiceIdx - 1 ]
+                else:
+                    print("Invalid choice. Please enter a valid number.")
+            except ValueError:
+                print("Invalid input. Please enter a number or 'q' to quit.")
     
     def setRegion( self, city: City ):
         self.city = city
@@ -390,11 +440,11 @@ if __name__ == "__main__":
             # status = bms.checkCinema()
             try:
                 bms = BMS( args )
-                region = bms.searchRegion( args.regionCode )[ 0 ]
-                region = [ item.RegionCode.lower() for item in region ]
-                bms.setRegion( region )
-                venue = bms.searchVenue( args.cinema )[ 0 ]
-                print( 'Venue', venue )
+                regions = bms.searchRegion( args.regionCode )
+                bms.chooseRegion( regions )
+                venues = bms.searchVenue( args.cinema )
+                bms.chooseVenue( venues )
+                print( 'Selected', bms.city, bms.cinema )
                 # status = bms.checkCinema()
                 sys.exit( 1 )
                 break
