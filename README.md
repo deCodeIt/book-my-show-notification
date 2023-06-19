@@ -46,6 +46,7 @@ And you will be the first one to be notified as soon as the show is available
 To check for shows one can run similar commands:<br />
 `./BookMyShow.py --movie "avengers" --cinema "pvr" --date "20190426" --regionCode "BANG" --format "3D"`  
 `./BookMyShow.py --movie "flash" --cinema "nexus" --date "20230619" --regionCode "BANG" --format "3D"`
+`./BookMyShow.py --movie "flash" --cinema "nexus" --date "20230619" --regionCode "BANG"`
 
 ---
 
