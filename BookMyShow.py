@@ -299,6 +299,7 @@ class BMS( object ):
         found = False
         if jsonMovieFormats and len( jsonMovieFormats.ShowDetails ) > 0:
             for event in jsonMovieFormats.ShowDetails[ 0 ].Event:
+                print( f"Matching {event.EventTitle}" )
                 if self.movie.lower() in event.EventTitle.lower():
                     for eventFormat in event.ChildEvents:
                         if self.format is None:
