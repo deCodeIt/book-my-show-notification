@@ -4,6 +4,7 @@ import requests
 import pdb
 import sys
 
+import subprocess
 from bs4 import BeautifulSoup
 from sys import exit
 from time import time
@@ -23,6 +24,10 @@ from os.path import expanduser
 from os.path import exists
 from threading import Thread
 from playsound import playsound
+from typing import List
+from bmsDecorator import debug
+from bmsTypes import Region, City
+from collections import OrderedDict
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -67,7 +72,7 @@ class NotificationThread( Thread ):
             timeRemaining = int( round( timeRemaining if timeRemaining > 0 else 0 ) )
             sleep( timeRemaining )
         
-class BookMyShow( object ):
+class BMS( object ):
 
     def __init__( self, args ):
         self.args = args
@@ -77,9 +82,20 @@ class BookMyShow( object ):
         self.movie = self.args.movie
         self.format = self.args.format
         self.alarm = self.args.alarm
-        self.ss = requests.session()
         self.title = ''
-        self.setRegionDetails( self.regionCode )
+        self.ss = requests.session()
+        self.ss.headers.update(
+            {
+                # 'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                # 'Accept-Encoding': "gzip, deflate, br",
+                # 'Accept-Encoding': "identity",
+                # 'Host': "in.bookmyshow.com",
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
+                # 'Connection': 'Keep-Alive'
+            }
+        )
+        # self.ss.get( "https://in.bookmyshow.com/explore/movies-bengaluru" )
+        # self.setRegionDetails( self.regionCode )
 
     def notification( self, title, message ):
         nThread = NotificationThread( title, message, self.args )
@@ -112,20 +128,39 @@ class BookMyShow( object ):
                 playsound( self.alarm )
         else:
             self.ringBell()
+        
+    def fetchRegions( self ) -> Region:
+        '''
+        Returns all available regions
+        '''
+        url = "https://in.bookmyshow.com/api/explore/v1/discover/regions"
+        cmd = [
+            "curl",
+            "--http1.1",
+            "--user-agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            url
+        ]
+        data = subprocess.run( cmd, capture_output=True, text=True )
+        return Region.parse_raw( data.stdout )
 
-    def setRegionDetails( self, regionCode ):
-        '''
-        returns region codes required to form url
-        '''
-        curDate = datetime.now().strftime("%Y%m%d%H")
-        regionData = self.ss.get( "https://in.bookmyshow.com/serv/getData/?cmd=GETREGIONS&t=" + curDate )
-        assert regionData.status_code == 200
-        regionData = regionData.text
-        # extract data in json format from above javascript variables
-        regionData = loads( regionData[ ( regionData.find( "=" ) + 1 ) : regionData.find( ";" ) ] )
-        # TODO: one does not need to remember the city code, the city name should be good enough
-        self.regionData = regionData.get( regionCode )[ 0 ]
-        assert self.regionData
+    def searchRegion( self, region: str ):
+        regions = self.fetchRegions()
+        results = []
+        
+        def checkItem( cities: List[City] ):
+            for item in cities:
+                if (
+                    ( region.lower() in item.RegionCode.lower() ) or
+                    ( region.lower() in item.RegionName.lower() ) or
+                    ( any( region.lower() in a.lower() for a in item.Alias ) )
+                ):
+                    results.append(item)
+                    
+        checkItem( regions.BookMyShow.TopCities )
+        checkItem( regions.BookMyShow.OtherCities )
+        
+        return results
 
     def getSearchUrl( self, searchTerm ):
         curTime = int( round( time() * 1000 ) )
@@ -322,7 +357,8 @@ if __name__ == "__main__":
             # bms = BookMyShow( args )
             # status = bms.checkCinema()
             try:
-                bms = BookMyShow( args )
+                bms = BMS( args )
+                region = bms.searchRegion( args.regionCode )[ 0 ]
                 status = bms.checkCinema()
                 break
             except AssertionError:
