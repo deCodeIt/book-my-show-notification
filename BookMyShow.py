@@ -26,7 +26,7 @@ from threading import Thread
 from playsound import playsound
 from typing import List
 from bmsDecorator import debug
-from bmsTypes import BMSRegion, City, BMSVenue, Venue
+from bmsTypes import BMSRegion, City, BMSVenue, Venue, CinemaPageApiResponse
 from collections import OrderedDict
 
 def getObject():
@@ -280,11 +280,13 @@ class BMS( object ):
         Notifies if a show is available in your requested cinema
         '''
         cinemaSoup = self.fetchCinemaPage()
+        # with open('cinema.html', 'w') as file:
+        #     file.write(cinemaSoup.prettify())
         scripts = cinemaSoup.find_all( "script" )
-        jsonMoviePattern = reCompile( "^\s*var\s+UAPI\s+=\s+JSON.parse\(\"(.*)\"\);" )
-        jsonMovieFormats = {}
+        jsonMoviePattern = reCompile( r"var\s+UAPI\s+=\s+JSON.parse\(\"(.*)\"\);" )
+        jsonMovieFormats: CinemaPageApiResponse = {}
         for script in scripts:
-            jsonMovieFormats = jsonMoviePattern.match( str( script.string ) )
+            jsonMovieFormats = jsonMoviePattern.search( str( script.string ) )
             if jsonMovieFormats:
                 jsonMovieFormats = jsonMovieFormats.groups()[ 0 ]
                 # now remove double slashes
@@ -292,22 +294,18 @@ class BMS( object ):
                 # now convert to json
                 jsonMovieFormats = loads( jsonMovieFormats )
                 break
-            
-        print( "JSON Movie Format", jsonMovieFormats )
         
-        sys.exit( 1 )
-
         # now see if your format is available
         found = False
-        if jsonMovieFormats['BookMyShow']['Event']:
-            for event in jsonMovieFormats['BookMyShow']['Event']:
-                if self.movie.lower() in event.get( 'EventTitle' ).lower():
-                    for eventFormat in event[ 'ChildEvents' ]:
+        if jsonMovieFormats:
+            for event in jsonMovieFormats.ShowDetails.Event:
+                if self.movie.lower() in event.EventTitle.lower():
+                    for eventFormat in event.ChildEvents:
                         if self.format is None:
                             # movie is available in any format
                             found = True
                             break
-                        elif eventFormat[ 'EventDimension' ] == self.format:
+                        elif eventFormat.EventDimension == self.format:
                             # we found our format
                             found = True
                             break
@@ -323,9 +321,9 @@ class BMS( object ):
             self.notification( "Hurray!", "Tickets for " + self.movie + " at " + self.title + " are now available" + formatAvailable )
             self.soundAlarm()
             return True
-        elif jsonMovieFormats['BookMyShow']['Event']:
+        elif jsonMovieFormats.ShowDetails.Event:
             # The requires format isn't available or the movie is yet to be released
-            availableFormats = [ eventFormat[ 'EventDimension' ] for eventFormat in event[ 'ChildEvents' ] for event in jsonMovieFormats['BookMyShow']['Event'] if self.movie.lower() in event[ 'EventTitle' ].lower() ]
+            availableFormats = [ eventFormat.EventDimension for eventFormat in event.ChildEvents for event in jsonMovieFormats.ShowDetails.Event if self.movie.lower() in event.EventTitle.lower() ]
             if availableFormats:
                 print( "The available format(s) : " + ( ", ".join( availableFormats ) ) )
                 print( "Movie is not available in requested " + self.format + " format, will retry..." )

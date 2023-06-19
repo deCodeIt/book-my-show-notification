@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Union, Optional, Literal
+from typing import List, Union, Optional, Literal, Dict
 
 class SubRegion(BaseModel):
     AllowSales: str
@@ -75,3 +75,97 @@ class BookMyShowVenues(BaseModel):
 
 class BMSVenue(BaseModel):
     BookMyShow: BookMyShowVenues
+    
+# Shows
+class Category(BaseModel):
+    PriceCode: str
+    AdditionalData: str
+    CurPrice: str
+    UpdatedPrice: str
+    AreaCatCode: str
+    AvailStatus: str
+    BestAvailableSeats: str
+    SeatLayout: str
+    PriceDesc: str
+    CategoryRange: str
+
+class ShowTime(BaseModel):
+    ShowDateTime: str
+    CategoryRange: str
+    Attributes: str
+    ApplicableTimeFilters: List[str]
+    MinPrice: str
+    UpdatedMinPrice: str
+    SessionCopQuota: str
+    SessionCodFlag: str
+    CutOffDateTime: str
+    ChildSeats: str
+    BestAvailableSeats: int
+    CutOffFlag: str
+    SessionCodQuota: str
+    SessionId: str
+    BestBuy: str
+    SessionCopFlag: str
+    AvailStatus: str
+    ShowTime: str
+    SessionPopUpDesc: str
+    Categories: List[Category]
+    ShowDateCode: str
+    SessionUnpaidFlag: str
+    CoupleSeats: str
+    SessionUnpaidQuota: str
+    IsAtmosEnabled: str
+    MaxPrice: str
+    UpdatedMaxPrice: str
+    Offers: str
+    ApplicablePriceFilters: List[str]
+    ShowTimeCode: str
+    SessionSubTitle: str
+    SessionSubTitleAcronym: str
+
+class EventGenre(BaseModel):
+    Action: List[str]
+    Adventure: List[str]
+    Fantasy: List[str]
+    GenreMeta: List[str]
+
+class ChildEvent(BaseModel):
+    Event_strIsDefault: Literal['Y', 'N']
+    EventSyn: str
+    EventRAT: str
+    EventSEQ: str
+    EventTrailer: str
+    EventName: str
+    EventGenre: EventGenre
+    ApplicableTimeFilters: List[str]
+    EventCensor: str
+    EventGroup: str
+    EventCode: str
+    EventImageCode: str
+    EventDimension: str
+    ShowTimes: List[ShowTime]
+    IsMovieClubEnabled: Literal['Y', 'N']
+    EventIsAtmosEnabled: Literal['Y', 'N']
+    Event_strPopUpDesc: str
+    EventLanguage: str
+    EventUrl: str
+    ApplicablePriceFilters: List[str]
+
+class Event(BaseModel):
+    EventTitle: str
+    EventDuration: str
+    ChildEvents: List[ChildEvent]
+    EventSynopsis: str
+    EventGenre: str
+    ApplicablePriceFilters: List[str]
+    ApplicableTimeFilters: List[str]
+    EventCensor: str
+    EventGroup: str
+
+class ShowDetail(BaseModel):
+    Date: str
+    BMSOffers: str
+    Event: List[Event]
+
+class CinemaPageApiResponse(BaseModel):
+    ShowDetails: ShowDetail
