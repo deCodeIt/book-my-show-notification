@@ -374,7 +374,7 @@ if __name__ == "__main__":
     bms.chooseRegion( regions )
     venues = bms.searchVenue( args.cinema )
     bms.chooseVenue( venues )
-    print( 'Selected', bms.city, bms.cinema )
+    print( f'Selected {bms.cinema.VenueName} in region {bms.city.RegionName}' )
     while not status:
         start = time()
         retry = 0
