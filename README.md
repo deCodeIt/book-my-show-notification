@@ -5,8 +5,6 @@ A python script to notify as soon as tickets for a given show are available on B
 
 ### Dependencies
 
-Note that unnecessary requirements have creeped in because I didn't used a virtual environment. Will fix it in some time.
-
 Install dependencies using:<br />
 `pip3 install -r requirements.txt`
 
