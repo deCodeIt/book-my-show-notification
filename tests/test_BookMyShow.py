@@ -32,3 +32,20 @@ def test_venue():
   bms.setRegion( regions[ 0 ] )
   venues = bms.searchVenue( args.cinema )
   assert any( [ True if venue.VenueCode.lower() == args.cinema else False for venue in venues ] )
+  
+def test_cinema_url():
+  args = MockParsedArgs(
+    movie='Random Movie',
+    cinema= 'pvbn',
+    regionCode= 'BANG',
+    date=None,
+    format=None,
+    alarm=None
+  )
+  bms = BMS( args )
+  regions = bms.searchRegion( args.regionCode )
+  bms.setRegion( regions[ 0 ] )
+  venues = bms.searchVenue( args.cinema )
+  bms.setVenue( venues[ 0 ] )
+  url = bms.getCinemaUrl()
+  assert url.startswith( 'https://in.bookmyshow.com/buytickets/pvr-nexus-formerly-forum-koramangala/cinema-bang-PVBN-MT/' )
