@@ -343,7 +343,7 @@ def parser():
     parser.add_argument( '-m', '--movie', required=True, action='store', type=str, help="The movie you're looking to book tickets for" )
     parser.add_argument( '-c', '--cinema', required=True, action='store', type=str, help="The cinema in which you want to watch the movie" )
     parser.add_argument( '-f', '--format', action='store', choices=[ "2D", "3D", "IMAX 2D", "IMAX 3D" ], type=str, help="Preferred format, if any" )
-    parser.add_argument( '-d', '--date', required=True, action='store', type=str, help="Format: YYYYMMDD | The date on which you want to book tickets." )
+    parser.add_argument( '-d', '--date', action='store', type=str, help="Format: YYYYMMDD | The date on which you want to book tickets." )
     parser.add_argument( '-r', '--regionCode', required=True, action='store', type=str, help="The region code of your area; BANG for Bengaluru" )
     parser.add_argument( '-i', '--interval', action='store', type=int, help="BMS server will be queried every interval seconds", default=60 )
     parser.add_argument( '-a', '--alarm', action='store', type=str, help="Path to audio file that will play as an alarm when notified ( optional )" )
