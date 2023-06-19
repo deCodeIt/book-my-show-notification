@@ -249,15 +249,16 @@ class BMS( object ):
         curDate = datetime.now().strftime("%Y%m%d") if self.date is None else self.date
         venueName = reSub('[^0-9a-zA-Z ]+', '', self.cinema.VenueName ).lower().replace( " ", "-" )
 
-        movieUrl = "https://in.bookmyshow.com/buytickets/"
-        movieUrl += venueName
-        movieUrl += "/cinema-"
-        movieUrl += self.city.RegionCode.lower()
-        movieUrl += "-"
-        movieUrl += self.cinema.VenueCode
-        movieUrl += "-MT/"
-        movieUrl += curDate
-        return movieUrl
+        cinemaUrl = "https://in.bookmyshow.com/buytickets/"
+        cinemaUrl += venueName
+        cinemaUrl += "/cinema-"
+        cinemaUrl += self.city.RegionCode.lower()
+        cinemaUrl += "-"
+        cinemaUrl += self.cinema.VenueCode
+        cinemaUrl += "-MT/"
+        cinemaUrl += curDate
+        print( f"Cinema Url {cinemaUrl}" )
+        return cinemaUrl
     
     def fetchCinemaPage( self ) -> BeautifulSoup:
         '''
@@ -273,20 +274,6 @@ class BMS( object ):
         ]
         data = subprocess.run( cmd, capture_output=True, text=True )
         return BeautifulSoup( data.stdout, 'html5lib' )
-
-    def getUrlDataJSON( self, searchTerm ):
-        '''
-        returns all matched results after searching on bms
-        '''
-
-        url = self.getSearchUrl( searchTerm )
-        headers = {
-                'x-requested-from' : 'WEB',
-        }
-        data = self.ss.get( url, headers=headers )
-        assert data.status_code == 200
-        jsonResp = data.json()
-        return jsonResp
 
     def checkCinemaAvailability( self ):
         '''
