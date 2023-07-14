@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
-
-import requests
-import pdb
 import sys
 
 import subprocess
 from bs4 import BeautifulSoup
-from sys import exit
 from time import time
 from time import sleep
 from re import sub as reSub
 from re import compile as reCompile
 from datetime import datetime
-from json import loads, dumps
-from sys import stdout
 from os import system
 from os import remove
 from random import randint
 from random import randrange
 from argparse import ArgumentParser
-from argparse import Action
 from os.path import expanduser
 from os.path import exists
 from threading import Thread
@@ -27,7 +20,6 @@ from playsound import playsound
 from typing import List
 from bmsDecorator import debug
 from bmsTypes import BMSRegion, City, BMSVenue, Venue, CinemaPageApiResponse
-from collections import OrderedDict
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -85,19 +77,6 @@ class BMS( object ):
         self.title = ''
         self.city: City = None
         self.cinema: Venue = None
-        self.ss = requests.session()
-        self.ss.headers.update(
-            {
-                # 'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                # 'Accept-Encoding': "gzip, deflate, br",
-                # 'Accept-Encoding': "identity",
-                # 'Host': "in.bookmyshow.com",
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
-                # 'Connection': 'Keep-Alive'
-            }
-        )
-        # self.ss.get( "https://in.bookmyshow.com/explore/movies-bengaluru" )
-        # self.setRegionDetails( self.regionCode )
 
     def notification( self, title, message ):
         nThread = NotificationThread( title, message, self.args )
