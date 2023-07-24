@@ -7,9 +7,9 @@ except ImportError:
     try:
         from typing_extensions import Literal
     except ImportError:
-        print(f'Please install the "typing_extensions" module via the shell '
-                f'command "# pip install typing_extensions" before running '
-                f'{__file__} with Python-versions <= 3.7!')
+        print( f'Please install the "typing_extensions" module via the shell '
+               f'command "# pip install typing_extensions" before running '
+               f'{__file__} with Python-versions <= 3.7!' )
 
 class SubRegion(BaseModel):
     AllowSales: str
