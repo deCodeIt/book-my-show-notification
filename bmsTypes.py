@@ -1,5 +1,15 @@
 from pydantic import BaseModel
-from typing import List, Union, Optional, Literal, Dict
+from typing import List, Union, Optional, Dict
+
+try:
+    from typing import Literal
+except ImportError:
+    try:
+        from typing_extensions import Literal
+    except ImportError:
+        print( f'Please install the "typing_extensions" module via the shell '
+               f'command "# pip install typing_extensions" before running '
+               f'{__file__} with Python-versions <= 3.7!' )
 
 class SubRegion(BaseModel):
     AllowSales: str
@@ -81,7 +91,7 @@ class Category(BaseModel):
     PriceCode: str
     AdditionalData: str
     CurPrice: str
-    UpdatedPrice: str | None
+    UpdatedPrice: Union[str, None]
     AreaCatCode: str
     AvailStatus: str
     BestAvailableSeats: str
@@ -95,7 +105,7 @@ class ShowTime(BaseModel):
     Attributes: str
     ApplicableTimeFilters: List[str]
     MinPrice: str
-    UpdatedMinPrice: str | None
+    UpdatedMinPrice: Union[str, None]
     SessionCopQuota: str
     SessionCodFlag: str
     CutOffDateTime: str
@@ -116,8 +126,8 @@ class ShowTime(BaseModel):
     SessionUnpaidQuota: str
     IsAtmosEnabled: str
     MaxPrice: str
-    UpdatedMaxPrice: str | None
-    Offers: str | None
+    UpdatedMaxPrice: Union[str, None]
+    Offers: Union[str, None]
     ApplicablePriceFilters: List[str]
     ShowTimeCode: str
     SessionSubTitle: str
@@ -164,7 +174,7 @@ class Event(BaseModel):
 
 class ShowDetail(BaseModel):
     Date: str
-    BMSOffers: str | None
+    BMSOffers: Union[str, None]
     Event: List[Event]
 
 class CinemaPageApiResponse(BaseModel):
