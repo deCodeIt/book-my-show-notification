@@ -8,7 +8,7 @@ from availability import AvailabilityChecker
 from bms_api import BookMyShowApi
 from bmsTypes import BMSRegion, BMSVenue, City, Venue
 from http_client import CurlCffiHttpClient
-from notifier import NotificationService, NtfyClient
+from notifier import DesktopNotifier, NotificationService, PushbulletNotifier
 from search import RegionFinder, VenueFinder
 from ui import Selector
 
@@ -49,14 +49,14 @@ class BMS:
         self.selector = selector or Selector()
 
         pushbullet_arg = getattr(args, "pushBullet", None)
-        pushbullet = None
+        pushbullet_notifiers = []
         if pushbullet_arg:
             token = pushbullet_arg[0]
             devices = pushbullet_arg[1:] if len(pushbullet_arg) > 1 else [None]
-            pushbullet = (token, devices)
+            pushbullet_notifiers = [PushbulletNotifier(token, device) for device in devices]
 
         self.notification_service = notification_service or NotificationService(
-            NtfyClient(), pushbullet=pushbullet
+            desktop_notifier=DesktopNotifier(), pushbullet_notifiers=pushbullet_notifiers
         )
         self.alarm = alarm or create_alarm(args.alarm)
         self.availability_checker = availability_checker or AvailabilityChecker(
