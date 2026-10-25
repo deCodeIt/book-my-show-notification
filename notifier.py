@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from threading import Thread
-from time import sleep, time
 from typing import Optional
 
 import requests
@@ -50,36 +49,28 @@ def _escape_applescript(value: str) -> str:
 
 
 class NotificationThread(Thread):
-    def __init__(self, desktop_notifier, pushbullet_notifiers, title, message, interval):
+    def __init__(self, desktop_notifier, pushbullet_notifiers, title, message):
         super().__init__()
         self.desktop_notifier = desktop_notifier
         self.pushbullet_notifiers = pushbullet_notifiers
         self.title = title
         self.message = message
-        self.interval = interval
 
     def run(self) -> None:
         for notifier in self.pushbullet_notifiers:
             notifier.send(self.title, self.message)
-        while True:
-            start = time()
-            self.desktop_notifier.send(self.title, self.message)
-            stop = time()
-            remaining = self.interval - (stop - start)
-            remaining = int(round(remaining if remaining > 0 else 0))
-            sleep(remaining)
+        self.desktop_notifier.send(self.title, self.message)
 
 
 class NotificationService:
-    """Starts background notifications without blocking the caller."""
+    """Sends a one-shot notification in the background without blocking the caller."""
 
-    def __init__(self, desktop_notifier=None, pushbullet_notifiers=None, interval: int = 10):
+    def __init__(self, desktop_notifier=None, pushbullet_notifiers=None):
         self.desktop_notifier = desktop_notifier or DesktopNotifier()
         self.pushbullet_notifiers = pushbullet_notifiers or []
-        self.interval = interval
 
     def notify(self, title: str, message: str) -> None:
         thread = NotificationThread(
-            self.desktop_notifier, self.pushbullet_notifiers, title, message, self.interval
+            self.desktop_notifier, self.pushbullet_notifiers, title, message
         )
         thread.start()
