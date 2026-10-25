@@ -14,7 +14,7 @@ Install dependencies using:<br />
 
 There are multiple fields required while running the script:
 ```
-usage: ./BookMyShow.py [-h] -m MOVIE -c CINEMA [-f {2D,3D,IMAX 2D,IMAX 3D,4DX,DOLBY CINEMA 2D}] -d
+usage: ./BookMyShow.py [-h] -m MOVIE -c CINEMA [-f {2D,3D,4DX,DOLBY CINEMA 2D,2D SCREEN X,4DX 3D,IMAX 2D,IMAX 3D,ICE,3D SCREEN X,EPIQ 3D,DOLBY CINEMA 3D,MX4D 3D,HDR By Barco,ICE 3D}] -d
                        DATE -r REGIONCODE [-i INTERVAL] [-a ALARM]
                        [-b ACCESS_TOKEN [DEVICE_ID ...]]
 
@@ -26,7 +26,7 @@ optional arguments:
                         The movie you're looking to book tickets for
   -c CINEMA, --cinema CINEMA
                         The cinema in which you want to watch the movie
-  -f {2D,3D,IMAX 2D,IMAX 3D,4DX,DOLBY CINEMA 2D}, --format {2D,3D,IMAX 2D,IMAX 3D,4DX,DOLBY CINEMA 2D}
+  -f {2D,3D,4DX,DOLBY CINEMA 2D,2D SCREEN X,4DX 3D,IMAX 2D,IMAX 3D,ICE,3D SCREEN X,EPIQ 3D,DOLBY CINEMA 3D,MX4D 3D,HDR By Barco,ICE 3D}, --format {2D,3D,4DX,DOLBY CINEMA 2D,2D SCREEN X,4DX 3D,IMAX 2D,IMAX 3D,ICE,3D SCREEN X,EPIQ 3D,DOLBY CINEMA 3D,MX4D 3D,HDR By Barco,ICE 3D}
                         Preferred format, if any
   -d DATE, --date DATE  Format: YYYYMMDD | The date on which you want to book tickets.
   -r REGIONCODE, --regionCode REGIONCODE

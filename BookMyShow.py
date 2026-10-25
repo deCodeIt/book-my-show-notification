@@ -151,7 +151,11 @@ def parser():
     parser.add_argument("-c", "--cinema", required=True, action="store", type=str,
                         help="The cinema in which you want to watch the movie")
     parser.add_argument("-f", "--format", action="store",
-                        choices=["2D", "3D", "IMAX 2D", "IMAX 3D", "4DX", "DOLBY CINEMA 2D"], type=str,
+                        choices=[
+                            "2D", "3D", "4DX", "DOLBY CINEMA 2D", "2D SCREEN X",
+                            "4DX 3D", "IMAX 2D", "IMAX 3D", "ICE", "3D SCREEN X",
+                            "EPIQ 3D", "DOLBY CINEMA 3D", "MX4D 3D", "HDR By Barco", "ICE 3D",
+                        ], type=str,
                         help="Preferred format, if any")
     parser.add_argument("-d", "--date", action="store", type=str,
                         help="Format: YYYYMMDD | The date on which you want to book tickets.")
