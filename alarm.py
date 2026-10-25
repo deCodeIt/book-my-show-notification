@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from os import system
 from os.path import expanduser
 from random import randint, randrange
 from time import sleep
@@ -32,13 +31,30 @@ class BellAlarm(Alarm):
 
 
 class SineBellAlarm(Alarm):
+    SAMPLE_RATE = 44100
+
     def sound(self, max_seconds: Optional[float] = None) -> None:
-        total_duration = 0.0
+        import array
+        import math
+        import os
+
+        os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        import pygame
+
         limit = 10.0 if max_seconds is None else min(max_seconds, 10.0)
+        pygame.mixer.init(frequency=self.SAMPLE_RATE, size=-16, channels=1)
+        total_duration = 0.0
         while total_duration < limit:
             duration = 1.0 / randint(5, 10)
             freq = randrange(200, 2000, 200)
-            system("play --no-show-progress --null --channels 1 synth {} sine {}".format(duration, freq))
+            sample_count = int(self.SAMPLE_RATE * duration)
+            samples = array.array(
+                "h",
+                (int(32767 * 0.3 * math.sin(2 * math.pi * freq * i / self.SAMPLE_RATE))
+                 for i in range(sample_count)),
+            )
+            pygame.mixer.Sound(buffer=samples.tobytes()).play()
+            sleep(duration)
             total_duration += duration
 
 
