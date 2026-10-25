@@ -1,4 +1,3 @@
-from re import compile as reCompile
 from typing import List, Optional
 
 from alarm import Alarm
@@ -14,8 +13,6 @@ class AvailabilityChecker:
     ``Alarm``) rather than the old God-class, so the parsing logic is isolated
     and can be swapped without touching the rest of the program.
     """
-
-    UAPI_PATTERN = reCompile(r'var\s+UAPI\s+=\s+JSON.parse\("(.*)"\);')
 
     def __init__(
         self,
@@ -33,9 +30,8 @@ class AvailabilityChecker:
         self.movie_format = movie_format
         self.title = title
 
-    def check(self, cinema_url: str) -> bool:
-        soup = self.api.fetch_cinema_page(cinema_url)
-        show_details = self._parse_show_details(soup)
+    def check(self, venue_code: str, region_code: str, date: Optional[str] = None) -> bool:
+        show_details = self.api.fetch_cinema_showtimes(venue_code, region_code, date)
 
         format_available = " in " + self.movie_format if self.movie_format else ""
 
@@ -59,14 +55,6 @@ class AvailabilityChecker:
         print("Movie tickets aren't available yet, retrying...")
         return False
 
-    def _parse_show_details(self, soup) -> Optional[CinemaPageApiResponse]:
-        for script in soup.find_all("script"):
-            match = self.UAPI_PATTERN.search(str(script.string))
-            if match:
-                raw = match.groups()[0].replace("\\", "")
-                return CinemaPageApiResponse.parse_raw(raw)
-        return None
-
     def _is_movie_available(self, show_details: Optional[CinemaPageApiResponse]) -> bool:
         if show_details is None or len(show_details.ShowDetails) == 0:
             return False
@@ -85,3 +73,4 @@ class AvailabilityChecker:
                     if child.EventDimension not in formats:
                         formats.append(child.EventDimension)
         return formats
+

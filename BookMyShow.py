@@ -109,7 +109,9 @@ class BMS:
         return url
 
     def checkCinemaAvailability(self) -> bool:
-        return self.availability_checker.check(self.getCinemaUrl())
+        return self.availability_checker.check(
+            self.cinema.VenueCode, self.city.RegionCode, self.date
+        )
 
     # -- notifications & alarm (backward-compatible wrappers) -------------
     def notification(self, title: str, message: str) -> None:

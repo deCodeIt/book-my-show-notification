@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from bs4 import BeautifulSoup
 
-from bmsTypes import BMSRegion, City, Movie, Venue, VenueList
+from bmsTypes import BMSRegion, CinemaPageApiResponse, City, Movie, Venue, VenueList
 from http_client import HttpClient
 
 
@@ -22,6 +22,7 @@ class BookMyShowApi:
     REGIONS_URL = "https://in.bookmyshow.com/api/explore/v1/discover/regions"
     VENUES_URL = "https://in.bookmyshow.com/api/v2/mobile/venues?regionCode={region_code}&eventType=MT"
     MOVIES_URL = "https://in.bookmyshow.com/api/explore/v1/discover/movies-{region_slug}"
+    CINEMA_SHOWTIMES_URL = "https://in.bookmyshow.com/api/v3/mobile/showtimes/byvenue"
 
     def __init__(self, http: HttpClient):
         self.http = http
@@ -107,3 +108,11 @@ class BookMyShowApi:
 
     def fetch_cinema_page(self, cinema_url: str) -> BeautifulSoup:
         return BeautifulSoup(self.http.get(cinema_url), "html5lib")
+
+    def fetch_cinema_showtimes(
+        self, venue_code: str, region_code: str, date: Optional[str] = None
+    ) -> CinemaPageApiResponse:
+        """Returns showtimes for a cinema on a given date."""
+        date_code = datetime.now().strftime("%Y%m%d") if date is None else date
+        params = {"dateCode": date_code, "venueCode": venue_code, "regionCode": region_code}
+        return CinemaPageApiResponse.parse_raw(self.http.get(self.CINEMA_SHOWTIMES_URL, params=params))
