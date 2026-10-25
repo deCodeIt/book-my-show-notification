@@ -87,11 +87,24 @@ class BMS:
 
     # -- selection --------------------------------------------------------
     def chooseRegion(self, regions) -> City:
+        exact = [r for r in regions if r.RegionCode.upper() == self.region_code]
+        if exact:
+            city = exact[0]
+            self.setRegion(city)
+            print(f"Selected region: {city.RegionName} ({city.RegionCode})")
+            return city
         city = self.selector.choose_region(regions)
         self.setRegion(city)
         return city
 
     def chooseVenue(self, venues) -> Venue:
+        query = (self.args.cinema or "").upper()
+        exact = [v for v in venues if v.VenueCode.upper() == query]
+        if exact:
+            cinema = exact[0]
+            self.setVenue(cinema)
+            print(f"Selected cinema: {cinema.VenueName} ({cinema.VenueCode})")
+            return cinema
         cinema = self.selector.choose_venue(venues)
         self.setVenue(cinema)
         return cinema
@@ -138,7 +151,7 @@ def parser():
     parser.add_argument("-c", "--cinema", required=True, action="store", type=str,
                         help="The cinema in which you want to watch the movie")
     parser.add_argument("-f", "--format", action="store",
-                        choices=["2D", "3D", "IMAX 2D", "IMAX 3D"], type=str,
+                        choices=["2D", "3D", "IMAX 2D", "IMAX 3D", "4DX", "DOLBY CINEMA 2D"], type=str,
                         help="Preferred format, if any")
     parser.add_argument("-d", "--date", action="store", type=str,
                         help="Format: YYYYMMDD | The date on which you want to book tickets.")
