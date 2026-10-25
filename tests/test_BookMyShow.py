@@ -36,7 +36,7 @@ class MockParsedArgs:
 def test_cinema_url():
   args = MockParsedArgs(
     movie='Random Movie',
-    cinema= 'pvbn',
+    cinema= 'pvff',
     regionCode= 'bang',
     date=None,
     format=None,
@@ -50,5 +50,5 @@ def test_cinema_url():
   assert any( [ True if venue.VenueCode.lower() == args.cinema else False for venue in venues ] )
   bms.setVenue( venues[ 0 ] )
   url = bms.getCinemaUrl()
-  assert url.startswith( 'https://in.bookmyshow.com/buytickets/pvr-nexus-formerly-forum-koramangala/cinema-bang-PVBN-MT/' )
+  assert url.startswith( 'https://in.bookmyshow.com/buytickets/pvr-nexus-formerly-forum-koramangala/cinema-bang-PVFF-MT/' )
   assert bms.fetchCinemaPage() is not None

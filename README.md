@@ -54,6 +54,7 @@ An alternate CLI lets you exercise the components directly:
 
 ```
 python bms_cli.py region bang
+python bms_cli.py venue BANG
 python bms_cli.py venue BANG pvr
 python bms_cli.py movie bang
 python bms_cli.py movie bang --languages hindi
@@ -64,12 +65,12 @@ python bms_cli.py alarm --kind file --path /path/to/alarm.mp3
 ```
 
 - `region <query>` — search regions/cities by code, name, or alias.
-- `venue <region_code> <query>` — search venues/cinemas within a region.
+- `venue <region_code> [query]` — list venues/cinemas within a region (optionally filtered by code/name).
 - `movie <region> [--languages LANG]` — list movies currently showing in a region.
 - `notify <title> <message>` — show a native macOS desktop notification (no CLI required). Add `--pushbullet TOKEN [DEVICE_ID]` to push via the Pushbullet API.
 - `alarm --kind bell|sine|file [--path PATH] [--duration SECONDS]` — trigger a bounded test alarm.
 
-Note: the venue endpoint is currently blocked by BookMyShow and returns HTTP 400.
+Note: the venues endpoint used by the app is `https://in.bookmyshow.com/api/v2/mobile/venues`.
 
 ---
 

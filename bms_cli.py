@@ -3,6 +3,7 @@
 
 Examples:
     python bms_cli.py region bang
+    python bms_cli.py venue BANG
     python bms_cli.py venue BANG pvr
     python bms_cli.py movie bang
     python bms_cli.py movie bang --languages hindi
@@ -53,15 +54,19 @@ def cmd_region(args):
 def cmd_venue(args):
     api, _, venue_finder = build_components()
     try:
-        results = venue_finder.search(api, args.region_code, args.query)
+        if args.query:
+            results = venue_finder.search(api, args.region_code, args.query)
+        else:
+            results = api.fetch_venues(args.region_code)
     except HTTPError as exc:
         print(f"Venue endpoint rejected the request ({exc}).")
-        print("It is currently blocked by BookMyShow; try a different endpoint/params.")
         return 1
     if not results:
-        print(f"No venues found for '{args.query}' in {args.region_code}")
+        label = f" '{args.query}' in" if args.query else " in"
+        print(f"No venues found for{label} {args.region_code}")
         return 1
-    print(f"Matching venues for '{args.query}' in {args.region_code}:")
+    label = f" for '{args.query}'" if args.query else ""
+    print(f"Matching venues{label} in {args.region_code}:")
     print_venues(results)
     return 0
 
@@ -157,9 +162,9 @@ def main(argv=None):
     region_parser.add_argument("query", help="region code, name, or alias (e.g. bang)")
     region_parser.set_defaults(func=cmd_region)
 
-    venue_parser = subparsers.add_parser("venue", help="search venues/cinemas within a region")
+    venue_parser = subparsers.add_parser("venue", help="list venues/cinemas within a region")
     venue_parser.add_argument("region_code", help="region code (e.g. BANG)")
-    venue_parser.add_argument("query", help="venue code or name (e.g. pvr)")
+    venue_parser.add_argument("query", nargs="?", help="optional venue code or name filter (e.g. pvr)")
     venue_parser.set_defaults(func=cmd_venue)
 
     movie_parser = subparsers.add_parser("movie", help="list movies in a region")

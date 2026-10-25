@@ -64,14 +64,18 @@ class Venue(BaseModel):
     isDown: bool
     CinemaIsOnlineNoTransactionMsg: str
     isRecommended: bool
-    Distance: str
-    distanceDouble: float
-    distanceText: str
+    Distance: str = ""
+    distanceDouble: Optional[float] = None
+    distanceText: Optional[str] = None
     mticket: Literal['Y','N']
     arrDates: List[ShowDate]
 
 class BookMyShowVenues(BaseModel):
     arrVenue: List[Venue]
+
+class VenueList(BaseModel):
+    """Response of the current /api/v2/mobile/venues endpoint."""
+    venues: List[Venue]
 
 class BMSVenue(BaseModel):
     BookMyShow: BookMyShowVenues

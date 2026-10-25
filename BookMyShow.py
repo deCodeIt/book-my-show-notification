@@ -6,7 +6,7 @@ from time import sleep, time
 from alarm import BellAlarm, SineBellAlarm, create_alarm
 from availability import AvailabilityChecker
 from bms_api import BookMyShowApi
-from bmsTypes import BMSRegion, BMSVenue, City, Venue
+from bmsTypes import BMSRegion, City, Venue
 from http_client import CurlCffiHttpClient
 from notifier import DesktopNotifier, NotificationService, PushbulletNotifier
 from search import RegionFinder, VenueFinder
@@ -72,7 +72,7 @@ class BMS:
     def fetchRegions(self) -> BMSRegion:
         return self.api.fetch_regions()
 
-    def fetchVenues(self) -> BMSVenue:
+    def fetchVenues(self):
         return self.api.fetch_venues(self.city.RegionCode)
 
     def fetchCinemaPage(self):

@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from bs4 import BeautifulSoup
 
-from bmsTypes import BMSRegion, BMSVenue, City, Movie, Venue
+from bmsTypes import BMSRegion, City, Movie, Venue, VenueList
 from http_client import HttpClient
 
 
@@ -20,7 +20,7 @@ class BookMyShowApi:
     """
 
     REGIONS_URL = "https://in.bookmyshow.com/api/explore/v1/discover/regions"
-    VENUES_URL = "https://in.bookmyshow.com/pwa/api/de/venues?regionCode={region_code}&eventType=MT"
+    VENUES_URL = "https://in.bookmyshow.com/api/v2/mobile/venues?regionCode={region_code}&eventType=MT"
     MOVIES_URL = "https://in.bookmyshow.com/api/explore/v1/discover/movies-{region_slug}"
 
     def __init__(self, http: HttpClient):
@@ -29,9 +29,9 @@ class BookMyShowApi:
     def fetch_regions(self) -> BMSRegion:
         return BMSRegion.parse_raw(self.http.get(self.REGIONS_URL))
 
-    def fetch_venues(self, region_code: str) -> BMSVenue:
+    def fetch_venues(self, region_code: str) -> List[Venue]:
         url = self.VENUES_URL.format(region_code=region_code)
-        return BMSVenue.parse_raw(self.http.get(url))
+        return VenueList.parse_raw(self.http.get(url)).venues
 
     def fetch_movies(
         self,
