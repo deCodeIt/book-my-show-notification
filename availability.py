@@ -52,7 +52,7 @@ class AvailabilityChecker:
             print("Movie is not available in requested " + self.movie_format + " format, will retry...")
             return False
 
-        print("Movie tickets aren't available yet, retrying...")
+        print("Movie tickets aren't available yet, retrying....")
         return False
 
     def _is_movie_available(self, show_details: Optional[CinemaPageApiResponse]) -> bool:
