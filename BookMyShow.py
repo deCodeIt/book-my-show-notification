@@ -20,6 +20,7 @@ from playsound import playsound
 from typing import List
 from bmsDecorator import debug
 from bmsTypes import BMSRegion, City, BMSVenue, Venue, CinemaPageApiResponse
+from curl_cffi import requests as cffiRequests
 
 def getObject():
     return type( '', (), {} ) # returns a simple object that can be used to add attributes
@@ -169,15 +170,9 @@ class BMS( object ):
         Returns all available regions
         '''
         url = "https://in.bookmyshow.com/api/explore/v1/discover/regions"
-        cmd = [
-            "curl",
-            "--http1.1",
-            "--user-agent",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-            url
-        ]
-        data = subprocess.run( cmd, capture_output=True, text=True )
-        return BMSRegion.parse_raw( data.stdout )
+        response = cffiRequests.get( url, impersonate="chrome", timeout=30 )
+        response.raise_for_status()
+        return BMSRegion.parse_raw( response.text )
 
     def searchRegion( self, region: str ) -> List[City]:
         regions = self.fetchRegions()
