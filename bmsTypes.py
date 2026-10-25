@@ -169,3 +169,12 @@ class ShowDetail(BaseModel):
 
 class CinemaPageApiResponse(BaseModel):
     ShowDetails: List[ShowDetail]
+
+class Movie(BaseModel):
+    name: str
+    event_code: str
+    event_group: str
+    genre: str = ""
+    language: str = ""
+    poster_url: Optional[str] = None
+    url: Optional[str] = None

@@ -55,6 +55,8 @@ An alternate CLI lets you exercise the components directly:
 ```
 python bms_cli.py region bang
 python bms_cli.py venue BANG pvr
+python bms_cli.py movie bang
+python bms_cli.py movie bang --languages hindi
 python bms_cli.py notify "Test" "Hello from bms_cli"
 python bms_cli.py notify "Test" "Hello" --pushbullet TOKEN
 python bms_cli.py alarm --kind bell --duration 2
@@ -63,6 +65,7 @@ python bms_cli.py alarm --kind file --path /path/to/alarm.mp3
 
 - `region <query>` — search regions/cities by code, name, or alias.
 - `venue <region_code> <query>` — search venues/cinemas within a region.
+- `movie <region> [--languages LANG]` — list movies currently showing in a region.
 - `notify <title> <message>` — show a native macOS desktop notification (no CLI required). Add `--pushbullet TOKEN [DEVICE_ID]` to push via the Pushbullet API.
 - `alarm --kind bell|sine|file [--path PATH] [--duration SECONDS]` — trigger a bounded test alarm.
 

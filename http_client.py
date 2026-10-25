@@ -11,7 +11,7 @@ class HttpClient(Protocol):
     (dependency inversion), so the transport can be swapped freely.
     """
 
-    def get(self, url: str) -> str:
+    def get(self, url: str, params: dict = None, headers: dict = None) -> str:
         ...
 
 
@@ -27,7 +27,9 @@ class CurlCffiHttpClient:
         self.impersonate = impersonate
         self.timeout = timeout
 
-    def get(self, url: str) -> str:
-        response = cffiRequests.get(url, impersonate=self.impersonate, timeout=self.timeout)
+    def get(self, url: str, params: dict = None, headers: dict = None) -> str:
+        response = cffiRequests.get(
+            url, params=params, headers=headers, impersonate=self.impersonate, timeout=self.timeout
+        )
         response.raise_for_status()
         return response.text

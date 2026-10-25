@@ -4,6 +4,8 @@
 Examples:
     python bms_cli.py region bang
     python bms_cli.py venue BANG pvr
+    python bms_cli.py movie bang
+    python bms_cli.py movie bang --languages hindi
     python bms_cli.py notify "Test" "Hello from bms_cli"
     python bms_cli.py notify "Test" "Hello" --pushbullet TOKEN
     python bms_cli.py alarm --kind bell --duration 2
@@ -61,6 +63,33 @@ def cmd_venue(args):
         return 1
     print(f"Matching venues for '{args.query}' in {args.region_code}:")
     print_venues(results)
+    return 0
+
+
+def cmd_movie(args):
+    api, region_finder, _ = build_components()
+    cities = region_finder.search(api, args.region)
+    if not cities:
+        print(f"No region found for '{args.region}'")
+        return 1
+    city = cities[0]
+
+    try:
+        movies = api.fetch_movies(city.RegionCode, city.RegionSlug, args.languages, city.Lat, city.Long)
+    except HTTPError as exc:
+        print(f"Movies endpoint rejected the request ({exc}).")
+        return 1
+
+    if not movies:
+        print("No movies found.")
+        return 1
+
+    language_note = f", language: {args.languages}" if args.languages else ""
+    print(f"Movies in {city.RegionName} ({city.RegionCode}){language_note}:")
+    for index, movie in enumerate(movies, start=1):
+        extra = ", ".join(part for part in (movie.language, movie.genre) if part)
+        suffix = f"  [{extra}]" if extra else ""
+        print(f"{index}. {movie.name}{suffix}  ({movie.event_code})")
     return 0
 
 
@@ -132,6 +161,11 @@ def main(argv=None):
     venue_parser.add_argument("region_code", help="region code (e.g. BANG)")
     venue_parser.add_argument("query", help="venue code or name (e.g. pvr)")
     venue_parser.set_defaults(func=cmd_venue)
+
+    movie_parser = subparsers.add_parser("movie", help="list movies in a region")
+    movie_parser.add_argument("region", help="region code, name, or alias (e.g. bang)")
+    movie_parser.add_argument("--languages", help="language filter (e.g. hindi,english)")
+    movie_parser.set_defaults(func=cmd_movie)
 
     notify_parser = subparsers.add_parser("notify", help="send a test notification")
     notify_parser.add_argument("title", help="notification title")
