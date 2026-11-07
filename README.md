@@ -24,13 +24,30 @@ open http://localhost:7654
 
 Create a watch in the UI: city → cinema → movie (or type a title for an upcoming release) → dates → format → save. When a showtime appears you get a Pushbullet push and the card flips to **found** with a deep link.
 
+### Data location
+
+State lives in a Docker **named volume** called `bms_data`, which is backed by a plain directory on the internal SSD:
+
+```
+~/docker/drive/bms/bms.db          # host directory (create it once)
+        ↕  bms_data (named volume, bind driver)
+/data                              # inside the container
+```
+
+```bash
+mkdir -p ~/docker/drive/bms        # required once, before the first `up`
+```
+
+Override the host directory with `BMS_DATA_DIR` (absolute path) in `.env`. Because the directory is on internal disk, the service no longer depends on an external drive being mounted, and `docker compose down` never deletes your watches (that would need `-v`).
+
 ### Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `APP_TOKEN` | *(empty)* | Shared token protecting the UI/API. Empty disables auth — localhost / trusted LAN only. |
 | `PUSHBULLET_TOKEN` | *(empty)* | Optional extra recipient for headless setups. Not needed — add recipients in the UI instead. |
-| `BMS_DB_PATH` | `/data/bms.db` | SQLite file; mount `/data` as a volume. |
+| `BMS_DB_PATH` | `/data/bms.db` | SQLite file inside the container. `/data` is the `bms_data` volume. |
+| `BMS_DATA_DIR` | `~/docker/drive/bms` | Host directory backing the `bms_data` volume. Must exist and be on internal disk. |
 | `BMS_TIMEZONE` | `Asia/Kolkata` | Timezone used to resolve "today" / "tomorrow". |
 | `BMS_DEFAULT_INTERVAL` | `60` | Default poll interval in seconds. |
 | `BMS_POLL_TICK` | `5` | How often the scheduler wakes up. |
@@ -70,7 +87,7 @@ Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
 
 Notes:
 
-- The agent runs a copy of `deploy/autostart.sh` from `~/Library/Application Support/bms-notifier/`. macOS blocks launchd-spawned processes from reading external volumes, so the job must not touch a repo kept on an external drive. It only talks to Docker (`docker start bms-notifier`).
+- The agent runs a copy of `deploy/autostart.sh` from `~/Library/Application Support/bms-notifier/`. macOS blocks launchd-spawned processes from reading external volumes, so the job must not touch a repo kept on an external drive. It only talks to Docker (`docker start bms-notifier`). Runtime data is on internal disk (`~/docker/drive/bms`), so booting does not depend on the external drive.
 - Because of that, the agent can start an **existing** container but cannot recreate one. After `docker compose down`, run `docker compose up -d` once from a terminal.
 - Code/`Dockerfile`/`.env` changes still need `docker compose up -d --build`; the agent never rebuilds.
 
