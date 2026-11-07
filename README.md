@@ -5,7 +5,7 @@ A python script to notify as soon as tickets for a given show are available on B
 
 ## Two ways to use this
 
-1. **Docker service + web UI (recommended)** — a small container that polls in the background, pushes to Pushbullet, and serves its own browser UI at `http://localhost:8080`.
+1. **Docker service + web UI (recommended)** — a small container that polls in the background, pushes to Pushbullet, and serves its own browser UI at `http://localhost:7654`.
 2. **CLI script** — the original one-shot command, documented under [CLI](#cli).
 
 ---
@@ -19,7 +19,7 @@ One container, one process, one SQLite file. It serves the web UI and polls Book
 ```bash
 cp .env.example .env          # set APP_TOKEN (auth for the web UI)
 docker compose up -d --build
-open http://localhost:8080
+open http://localhost:7654
 ```
 
 Create a watch in the UI: city → cinema → movie (or type a title for an upcoming release) → dates → format → save. When a showtime appears you get a Pushbullet push and the card flips to **found** with a deep link.
@@ -34,7 +34,7 @@ Create a watch in the UI: city → cinema → movie (or type a title for an upco
 | `BMS_TIMEZONE` | `Asia/Kolkata` | Timezone used to resolve "today" / "tomorrow". |
 | `BMS_DEFAULT_INTERVAL` | `60` | Default poll interval in seconds. |
 | `BMS_POLL_TICK` | `5` | How often the scheduler wakes up. |
-| `PORT` | `8080` | HTTP port inside the container. |
+| `PORT` | `7654` | Host port published by compose (the container always listens on 7654). Local `python -m app` runs honour it too. |
 
 Get a Pushbullet token from pushbullet.com → Settings → Access Tokens, then add it under **Settings → Pushbullet recipients** in the UI. No environment variable is required — add one entry per person who wants alerts.
 
@@ -92,7 +92,7 @@ The UI is a thin client over a JSON API. Every endpoint needs the token — eith
 python3.13 -m venv .venv
 ./.venv/bin/pip install -r requirements-server.txt pytest httpx
 ./.venv/bin/python -m pytest tests/test_service.py
-APP_TOKEN=dev ./.venv/bin/python -m app     # http://localhost:8080
+APP_TOKEN=dev ./.venv/bin/python -m app     # http://localhost:7654
 ```
 
 The service reuses [bms_api.py](./bms_api.py), [search.py](./search.py), [notifier.py](./notifier.py) and [bmsTypes.py](./bmsTypes.py). `alarm.py`, `ui.py` and the desktop-only dependencies are only needed by the CLI and are not in the image.

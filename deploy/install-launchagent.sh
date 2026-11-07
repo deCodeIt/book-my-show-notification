@@ -41,4 +41,4 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$PLIS
 
 echo "Installed $PLIST"
 echo "Logs: /tmp/bms-notifier.log and /tmp/bms-notifier.err"
-echo "UI:   http://localhost:8080"
+echo "UI:   http://localhost:7654"

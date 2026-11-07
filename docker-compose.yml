@@ -5,7 +5,7 @@ services:
     container_name: bms-notifier
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${PORT:-7654}:7654"
     volumes:
       - ./data:/data
     environment:

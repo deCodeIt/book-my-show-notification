@@ -36,7 +36,7 @@ class Settings:
     default_interval_seconds: int = 60
     timezone: str = "Asia/Kolkata"
     host: str = "0.0.0.0"
-    port: int = 8080
+    port: int = 7654
     env_pushbullet_token: str = ""
 
     @classmethod
@@ -48,6 +48,6 @@ class Settings:
             default_interval_seconds=int(os.getenv("BMS_DEFAULT_INTERVAL", "60")),
             timezone=os.getenv("BMS_TIMEZONE", "Asia/Kolkata"),
             host=os.getenv("HOST", "0.0.0.0"),
-            port=int(os.getenv("PORT", "8080")),
+            port=int(os.getenv("PORT", "7654")),
             env_pushbullet_token=os.getenv("PUSHBULLET_TOKEN", "").strip(),
         )
