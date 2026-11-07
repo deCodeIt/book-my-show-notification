@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BMS Watcher</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎬 BMS Watcher</div>
+    <nav class="tabs">
+      <button class="tab active" data-view="dashboard">Watches</button>
+      <button class="tab" data-view="wizard">New watch</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="view-dashboard" class="view">
+      <div class="row-between">
+        <h1>Your watches</h1>
+        <button class="primary" id="newWatchBtn">+ New watch</button>
+      </div>
+      <div id="watchList" class="cards"></div>
+      <p id="emptyState" class="muted center hidden">
+        No watches yet — create one and you'll get a Pushbullet ping the moment tickets appear.
+      </p>
+    </section>
+
+    <section id="view-wizard" class="view hidden">
+      <div class="row-between">
+        <h1 id="wizardTitle">New watch</h1>
+        <button class="ghost" id="cancelWizard">Cancel</button>
+      </div>
+      <ol class="steps" id="steps"></ol>
+      <div id="wizardBody" class="wizard-body"></div>
+      <div class="wizard-nav" id="wizardNav"></div>
+    </section>
+
+    <section id="view-settings" class="view hidden"></section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

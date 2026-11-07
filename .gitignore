@@ -103,3 +103,6 @@ bmsenv
 
 # mypy
 .mypy_cache/
+
+# Service runtime state
+data/

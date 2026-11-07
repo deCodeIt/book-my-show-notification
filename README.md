@@ -3,6 +3,92 @@ A python script to notify as soon as tickets for a given show are available on B
 
 ---
 
+## Two ways to use this
+
+1. **Docker service + web UI (recommended)** — a small container that polls in the background, pushes to Pushbullet, and serves its own browser UI at `http://localhost:8080`.
+2. **CLI script** — the original one-shot command, documented under [CLI](#cli).
+
+---
+
+## Run as a Docker service
+
+One container, one process, one SQLite file. It serves the web UI and polls BookMyShow in the background — no Redis, no worker queue, no build step.
+
+### Quick start
+
+```bash
+cp .env.example .env          # then edit APP_TOKEN (and optionally PUSHBULLET_TOKEN)
+docker compose up -d --build
+open http://localhost:8080
+```
+
+Create a watch in the UI: city → cinema → movie (or type a title for an upcoming release) → dates → format → save. When a showtime appears you get a Pushbullet push and the card flips to **found** with a deep link.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_TOKEN` | *(empty)* | Shared token protecting the UI/API. Empty disables auth — localhost / trusted LAN only. |
+| `PUSHBULLET_TOKEN` | *(empty)* | Pushbullet access token. Overrides any token saved in Settings. |
+| `BMS_DB_PATH` | `/data/bms.db` | SQLite file; mount `/data` as a volume. |
+| `BMS_TIMEZONE` | `Asia/Kolkata` | Timezone used to resolve "today" / "tomorrow". |
+| `BMS_DEFAULT_INTERVAL` | `60` | Default poll interval in seconds. |
+| `BMS_POLL_TICK` | `5` | How often the scheduler wakes up. |
+| `PORT` | `8080` | HTTP port inside the container. |
+
+Get a Pushbullet token from pushbullet.com → Settings → Access Tokens. You can save it in the UI (**Settings**) instead of the environment; the env value wins.
+
+### Start on boot (macOS)
+
+Docker Desktop → Settings → General → *Start Docker Desktop when you log in*. The container already uses `restart: unless-stopped`.
+
+For belt-and-braces (launches Docker too if it isn't running):
+
+```bash
+./deploy/install-launchagent.sh     # installs ~/Library/LaunchAgents/com.local.bms-notifier.plist
+./deploy/uninstall-launchagent.sh   # removes it
+```
+
+Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
+
+### Notification rules
+
+- A watch notifies **once**, on the transition from "no showtimes" to "showtimes listed", then stops polling and shows the match. **Pause/Resume** watches again; **Check now** probes without sending a push.
+- Tickets count as available when the cinema lists at least one showtime for a title matching the watch (and the chosen format, if any). This mirrors the CLI's substring matching.
+- Failed upstream requests are recorded on the card (`last error`) and retried on the next tick; they never stop the watch.
+
+### API
+
+The UI is a thin client over a JSON API. Every endpoint needs the token — either the login cookie or `Authorization: Bearer <token>`:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/healthz` | Liveness probe (no auth). |
+| `GET` | `/api/regions?q=` | City/region autocomplete. |
+| `GET` | `/api/venues?region=BANG&q=` | Cinema autocomplete. |
+| `GET` | `/api/movies?region=BANG&q=` | Now-showing movies. |
+| `GET` / `POST` | `/api/watches` | List / create watches. |
+| `PATCH` / `DELETE` | `/api/watches/{id}` | Edit, pause/resume, delete. |
+| `POST` | `/api/watches/{id}/check` | Check now (no notification). |
+| `GET` | `/api/watches/{id}/history` | Recent checks. |
+| `GET` / `PATCH` | `/api/settings` | Pushbullet config (token is always masked). |
+| `POST` | `/api/notifications/test` | Send a test push. |
+
+### Development
+
+```bash
+python3.13 -m venv .venv
+./.venv/bin/pip install -r requirements-server.txt pytest httpx
+./.venv/bin/python -m pytest tests/test_service.py
+APP_TOKEN=dev ./.venv/bin/python -m app     # http://localhost:8080
+```
+
+The service reuses [bms_api.py](./bms_api.py), [search.py](./search.py), [notifier.py](./notifier.py) and [bmsTypes.py](./bmsTypes.py). `alarm.py`, `ui.py` and the desktop-only dependencies are only needed by the CLI and are not in the image.
+
+---
+
+## CLI
+
 ### Dependencies
 
 Install dependencies using:<br />

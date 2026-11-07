@@ -1,0 +1,7 @@
+fastapi==0.115.14
+uvicorn[standard]==0.34.3
+pydantic==1.10.26
+curl_cffi==0.16.3
+requests==2.34.2
+beautifulsoup4==4.15.0
+html5lib==1.1

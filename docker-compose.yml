@@ -1,0 +1,17 @@
+services:
+  bms-notifier:
+    build: .
+    image: bms-notifier:latest
+    container_name: bms-notifier
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      BMS_DB_PATH: /data/bms.db
+      BMS_TIMEZONE: Asia/Kolkata
+      TZ: Asia/Kolkata
+      APP_TOKEN: ${APP_TOKEN:-}
+      PUSHBULLET_TOKEN: ${PUSHBULLET_TOKEN:-}
+      BMS_DEFAULT_INTERVAL: ${BMS_DEFAULT_INTERVAL:-60}
