@@ -48,16 +48,31 @@ A recipient that fails (revoked token, network) is skipped; the others still get
 
 ### Start on boot (macOS)
 
-Docker Desktop → Settings → General → *Start Docker Desktop when you log in*. The container already uses `restart: unless-stopped`.
+The container itself uses `restart: unless-stopped`, so **if Docker Desktop is running at login, the notifier comes back by itself**. Enable that once in Docker Desktop → Settings → General → *Start Docker Desktop when you sign in*.
 
-For belt-and-braces (launches Docker too if it isn't running):
+The LaunchAgent is the belt-and-braces option: it starts Docker Desktop if needed, then starts the container.
 
 ```bash
 ./deploy/install-launchagent.sh     # installs ~/Library/LaunchAgents/com.local.bms-notifier.plist
 ./deploy/uninstall-launchagent.sh   # removes it
 ```
 
+Verify it is registered and healthy:
+
+```bash
+launchctl print "gui/$(id -u)/com.local.bms-notifier" | grep -E "state|last exit code"
+docker stop bms-notifier
+launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # should bring it back
+curl -s http://localhost:7654/healthz
+```
+
 Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
+
+Notes:
+
+- The agent runs a copy of `deploy/autostart.sh` from `~/Library/Application Support/bms-notifier/`. macOS blocks launchd-spawned processes from reading external volumes, so the job must not touch a repo kept on an external drive. It only talks to Docker (`docker start bms-notifier`).
+- Because of that, the agent can start an **existing** container but cannot recreate one. After `docker compose down`, run `docker compose up -d` once from a terminal.
+- Code/`Dockerfile`/`.env` changes still need `docker compose up -d --build`; the agent never rebuilds.
 
 ### Notification rules
 
