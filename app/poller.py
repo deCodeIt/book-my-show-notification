@@ -188,16 +188,20 @@ class Poller:
                 self.notifier.send(
                     f"🎬 {best.movie} tickets are live!",
                     _build_message(watch, best),
+                    recipient_ids=watch.get("recipient_ids") or [],
                 )
                 notified = True
             except Exception as exc:
                 notify_error = f"notification failed: {type(exc).__name__}: {exc}"
                 logger.warning("notification failed for watch %s: %s", watch["id"], exc)
 
+        # Only mark the watch as found once the alert actually went out, so a
+        # delivery failure is retried on the next tick instead of being lost.
+        reached_found = notify_error is None
         self.db.update_watch(
             watch["id"],
             {
-                "state": "found",
+                "state": "found" if reached_found else watch["state"],
                 "last_checked_at": now,
                 "last_error": notify_error or error_text,
                 "matched_at": now,

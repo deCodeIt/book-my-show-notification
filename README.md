@@ -17,7 +17,7 @@ One container, one process, one SQLite file. It serves the web UI and polls Book
 ### Quick start
 
 ```bash
-cp .env.example .env          # then edit APP_TOKEN (and optionally PUSHBULLET_TOKEN)
+cp .env.example .env          # set APP_TOKEN (auth for the web UI)
 docker compose up -d --build
 open http://localhost:8080
 ```
@@ -29,14 +29,22 @@ Create a watch in the UI: city → cinema → movie (or type a title for an upco
 | Variable | Default | Purpose |
 |---|---|---|
 | `APP_TOKEN` | *(empty)* | Shared token protecting the UI/API. Empty disables auth — localhost / trusted LAN only. |
-| `PUSHBULLET_TOKEN` | *(empty)* | Pushbullet access token. Overrides any token saved in Settings. |
+| `PUSHBULLET_TOKEN` | *(empty)* | Optional extra recipient for headless setups. Not needed — add recipients in the UI instead. |
 | `BMS_DB_PATH` | `/data/bms.db` | SQLite file; mount `/data` as a volume. |
 | `BMS_TIMEZONE` | `Asia/Kolkata` | Timezone used to resolve "today" / "tomorrow". |
 | `BMS_DEFAULT_INTERVAL` | `60` | Default poll interval in seconds. |
 | `BMS_POLL_TICK` | `5` | How often the scheduler wakes up. |
 | `PORT` | `8080` | HTTP port inside the container. |
 
-Get a Pushbullet token from pushbullet.com → Settings → Access Tokens. You can save it in the UI (**Settings**) instead of the environment; the env value wins.
+Get a Pushbullet token from pushbullet.com → Settings → Access Tokens, then add it under **Settings → Pushbullet recipients** in the UI. No environment variable is required — add one entry per person who wants alerts.
+
+### Recipients
+
+Add one entry per person in **Settings → Pushbullet recipients**; no environment variable is needed. Tokens are stored server-side in SQLite and only ever shown masked (`••••1234`).
+
+Delivery is **per watch**: when you create or edit a watch you tick which recipients get that watch's alerts, so different people can follow different movies. Inside the wizard you can also paste a new token and it is added to the recipient list and selected for that watch in one step.
+
+A recipient that fails (revoked token, network) is skipped; the others still get the alert. If every recipient for a watch fails, the watch stays **watching** and retries on the next tick, with the error shown on the card — so a transient failure never silently loses an alert.
 
 ### Start on boot (macOS)
 
@@ -56,6 +64,7 @@ Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
 - A watch notifies **once**, on the transition from "no showtimes" to "showtimes listed", then stops polling and shows the match. **Pause/Resume** watches again; **Check now** probes without sending a push.
 - Tickets count as available when the cinema lists at least one showtime for a title matching the watch (and the chosen format, if any). This mirrors the CLI's substring matching.
 - Failed upstream requests are recorded on the card (`last error`) and retried on the next tick; they never stop the watch.
+- Alerts go only to the recipients ticked on that watch; one failing token does not block the others.
 
 ### API
 
@@ -71,8 +80,11 @@ The UI is a thin client over a JSON API. Every endpoint needs the token — eith
 | `PATCH` / `DELETE` | `/api/watches/{id}` | Edit, pause/resume, delete. |
 | `POST` | `/api/watches/{id}/check` | Check now (no notification). |
 | `GET` | `/api/watches/{id}/history` | Recent checks. |
-| `GET` / `PATCH` | `/api/settings` | Pushbullet config (token is always masked). |
-| `POST` | `/api/notifications/test` | Send a test push. |
+| `GET` | `/api/settings` | Configured recipients (tokens always masked). |
+| `POST` | `/api/settings/pushbullet` | Add a recipient `{token, label?, device?}`. |
+| `PATCH` | `/api/settings/pushbullet/{id}` | Update a recipient's label/device/token. |
+| `DELETE` | `/api/settings/pushbullet/{id}` | Remove a recipient. |
+| `POST` | `/api/notifications/test` | Send a test push (`{recipient_ids}` to target, omit for all). |
 
 ### Development
 

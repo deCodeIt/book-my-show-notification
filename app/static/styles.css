@@ -231,6 +231,37 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 
 .summary div { display: flex; gap: .5rem; justify-content: space-between; font-size: .9rem; border-bottom: 1px dashed var(--border); padding-bottom: .3rem; }
 .summary span:first-child { color: var(--muted); }
 
+.recipient-box {
+  margin-top: 1rem;
+  padding: .7rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: .9rem;
+}
+
+.recipient-row {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+button.recipient-row {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+  background: var(--surface);
+}
+button.recipient-row .tick { font-weight: 700; color: var(--muted); width: 1rem; }
+button.recipient-row.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+button.recipient-row.on .tick { color: var(--accent); }
+button.recipient-row .result-meta { display: block; }
+
+hr.sep { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+
 .toast {
   position: fixed;
   left: 50%;

@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
@@ -168,8 +169,8 @@ class FakeNotifier:
     def __init__(self):
         self.calls = []
 
-    def send(self, title, message):
-        self.calls.append((title, message))
+    def send(self, title, message, recipient_ids=None):
+        self.calls.append((title, message, recipient_ids))
 
 
 WATCH_PAYLOAD = {
@@ -183,7 +184,17 @@ WATCH_PAYLOAD = {
     "formats": ["IMAX 2D"],
     "date_mode": "today",
     "interval_seconds": 60,
+    "recipient_ids": ["r1"],
 }
+
+
+def seed_recipients(db, recipients=None):
+    db.set_json_setting(
+        "pushbullet_recipients",
+        recipients
+        if recipients is not None
+        else [{"id": "r1", "label": "Ali", "token": "tok-r1", "device": ""}],
+    )
 
 
 # -- units --------------------------------------------------------------
@@ -223,6 +234,7 @@ def test_find_matches_requires_a_showtime():
 def make_poller(tmp_path, api=None, notifier=None):
     db = Database(tmp_path / "bms.db")
     db.init()
+    seed_recipients(db)
     settings = Settings(database_path=tmp_path / "bms.db")
     poller = Poller(db, api or FakeApi(), settings, notifier or FakeNotifier(), tick_seconds=0.01)
     return db, poller
@@ -236,6 +248,7 @@ def test_poller_notifies_once_on_transition(tmp_path):
     asyncio.run(poller.tick())
     assert len(notifier.calls) == 1
     assert "Interstellar" in notifier.calls[0][0]
+    assert notifier.calls[0][2] == ["r1"], "must only push to the watch's recipients"
     assert db.get_watch(watch["id"])["state"] == "found"
 
     calls_after_first = len(api.calls)
@@ -264,14 +277,50 @@ def test_poller_skips_when_no_showtimes(tmp_path):
     assert notifier.calls == []
 
 
+def test_notification_failure_keeps_watch_retrying(tmp_path):
+    class FailingNotifier:
+        def send(self, title, message, recipient_ids=None):
+            raise RuntimeError("push down")
+
+    db, poller = make_poller(tmp_path, FakeApi(), FailingNotifier())
+    watch = db.create_watch(dict(WATCH_PAYLOAD))
+
+    asyncio.run(poller.tick())
+
+    stored = db.get_watch(watch["id"])
+    assert stored["state"] == "watching", "a failed alert must be retried"
+    assert "push down" in stored["last_error"]
+    assert stored["matched_detail"] is not None
+
+
+def test_watch_with_missing_recipient_reports_error(tmp_path):
+    from app.notify import PushbulletSender
+
+    db, poller = make_poller(tmp_path, FakeApi())
+    poller.notifier = PushbulletSender(db)
+    watch = db.create_watch(dict(WATCH_PAYLOAD))
+    db.remove_recipient_from_watches("r1")
+
+    asyncio.run(poller.tick())
+
+    stored = db.get_watch(watch["id"])
+    assert stored["state"] == "watching"
+    assert "no pushbullet recipient" in stored["last_error"].lower()
+
+
 # -- HTTP API -----------------------------------------------------------
-def make_client(tmp_path, app_token="secret", api=None, notifier=None):
+def make_client(tmp_path, app_token="secret", api=None, notifier=None, recipients=None):
+    if recipients is None:
+        seed = Database(tmp_path / "bms.db")
+        seed.init()
+        seed_recipients(seed)
+
     settings = Settings(
         app_token=app_token,
         database_path=tmp_path / "bms.db",
         poll_tick_seconds=3600,
     )
-    app = create_app(settings, api=api or FakeApi(), notifier=notifier or FakeNotifier())
+    app = create_app(settings, api=api or FakeApi(), notifier=notifier)
     return TestClient(app)
 
 
@@ -339,22 +388,214 @@ def test_catalogue_endpoints(tmp_path):
         assert movies[0]["title"] == "Interstellar"
 
 
-def test_settings_mask_and_test_push(tmp_path):
-    notifier = FakeNotifier()
-    with make_client(tmp_path, notifier=notifier) as client:
+def test_pushbullet_recipients_crud_and_test(tmp_path, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.notify.PushbulletNotifier.send",
+        lambda self, title, message: sent.append((self.token, title)),
+    )
+    with make_client(tmp_path, recipients=[]) as client:
         client.post("/api/login", json={"token": "secret"})
+        assert client.get("/api/settings").json()["pushbullet_recipients"] == []
+        assert client.post("/api/settings/pushbullet", json={"token": "  "}).status_code == 400
 
-        settings = client.get("/api/settings").json()
-        assert settings["token_configured"] is False
+        created = client.post(
+            "/api/settings/pushbullet",
+            json={"label": "Ali", "token": "abcdef123456", "device": "dev-1"},
+        )
+        assert created.status_code == 201, created.text
+        recipient = created.json()
+        assert recipient["token_hint"] == "••••3456"
+        assert recipient["label"] == "Ali"
+        assert "abcdef123456" not in created.text
 
-        client.patch("/api/settings", json={"pushbullet_token": "abcdef123456"})
+        duplicate = client.post("/api/settings/pushbullet", json={"token": "abcdef123456"})
+        assert duplicate.status_code == 409
+
         settings = client.get("/api/settings").json()
         assert settings["token_configured"] is True
-        assert settings["token_hint"] == "••••3456"
+        assert len(settings["pushbullet_recipients"]) == 1
         assert "abcdef123456" not in str(settings)
 
-        assert client.post("/api/notifications/test").status_code == 200
-        assert len(notifier.calls) == 1
+        test_response = client.post("/api/notifications/test")
+        assert test_response.status_code == 200, test_response.text
+        assert test_response.json()["result"]["sent"] == 1
+        assert sent == [("abcdef123456", "BMS watcher test")]
+
+        assert client.delete(f"/api/settings/pushbullet/{recipient['id']}").status_code == 200
+        assert client.get("/api/settings").json()["pushbullet_recipients"] == []
+
+
+def make_sender(tmp_path, recipients, env_token=""):
+    from app.notify import PushbulletSender
+
+    db = Database(tmp_path / "bms.db")
+    db.init()
+    db.set_json_setting("pushbullet_recipients", recipients)
+    return db, PushbulletSender(db, env_token)
+
+
+def test_sender_fans_out_to_every_recipient(tmp_path, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.notify.PushbulletNotifier.send",
+        lambda self, title, message: sent.append((self.token, self.device_iden)),
+    )
+    _, sender = make_sender(
+        tmp_path,
+        [
+            {"id": "a", "label": "A", "token": "tok-a", "device": ""},
+            {"id": "b", "label": "B", "token": "tok-b", "device": "dev-b"},
+        ],
+    )
+    result = sender.send("T", "M")
+    assert sent == [("tok-a", None), ("tok-b", "dev-b")]
+    assert result["sent"] == 2 and result["total"] == 2
+    assert all(item["ok"] for item in result["results"])
+
+
+def test_sender_survives_partial_failure(tmp_path, monkeypatch):
+    def flaky(self, title, message):
+        if self.token == "tok-a":
+            raise RuntimeError("nope")
+
+    monkeypatch.setattr("app.notify.PushbulletNotifier.send", flaky)
+    _, sender = make_sender(
+        tmp_path,
+        [
+            {"id": "a", "label": "A", "token": "tok-a", "device": ""},
+            {"id": "b", "label": "B", "token": "tok-b", "device": ""},
+        ],
+    )
+    result = sender.send("T", "M")
+    assert result["sent"] == 1
+    assert result["total"] == 2
+    assert [item["ok"] for item in result["results"]] == [False, True]
+
+
+def test_sender_raises_when_every_recipient_fails(tmp_path, monkeypatch):
+    def boom(self, title, message):
+        raise RuntimeError("down")
+
+    monkeypatch.setattr("app.notify.PushbulletNotifier.send", boom)
+    _, sender = make_sender(
+        tmp_path, [{"id": "a", "label": "A", "token": "tok-a", "device": ""}]
+    )
+    with pytest.raises(RuntimeError, match="every recipient"):
+        sender.send("T", "M")
+
+
+def test_sender_without_recipients_points_to_settings(tmp_path):
+    _, sender = make_sender(tmp_path, [])
+    with pytest.raises(RuntimeError, match="Settings"):
+        sender.send("T", "M")
+
+
+def test_env_token_is_an_extra_deduplicated_recipient(tmp_path):
+    _, sender = make_sender(
+        tmp_path,
+        [{"id": "a", "label": "A", "token": "tok-a", "device": ""}],
+        env_token="tok-env",
+    )
+    recipients = sender.recipients()
+    assert [item["token"] for item in recipients] == ["tok-a", "tok-env"]
+    assert recipients[1]["source"] == "env"
+
+    _, duplicate = make_sender(
+        tmp_path / "b",
+        [{"id": "a", "label": "A", "token": "tok-a", "device": ""}],
+        env_token="tok-a",
+    )
+    assert len(duplicate.recipients()) == 1
+
+
+def test_legacy_single_token_is_migrated(tmp_path):
+    from app.notify import PushbulletSender
+
+    db = Database(tmp_path / "bms.db")
+    db.init()
+    db.set_setting("pushbullet_token", "legacy-token")
+    db.set_setting("pushbullet_device", "legacy-device")
+    db.migrate()
+
+    recipients = db.get_json_setting("pushbullet_recipients")
+    assert recipients[0]["token"] == "legacy-token"
+    assert recipients[0]["device"] == "legacy-device"
+    assert db.get_setting("pushbullet_token") is None
+    assert PushbulletSender(db).recipients()[0]["token"] == "legacy-token"
+
+
+def test_migration_backfills_existing_watches_with_all_recipients(tmp_path):
+    db = Database(tmp_path / "bms.db")
+    db.init()
+    seed_recipients(db)
+    watch = db.create_watch(dict(WATCH_PAYLOAD))
+    # Simulate a row written before per-watch routing existed.
+    with db.session() as conn:
+        conn.execute("UPDATE watches SET recipient_ids = '[]' WHERE id = ?", (watch["id"],))
+
+    db.migrate()
+
+    assert db.get_watch(watch["id"])["recipient_ids"] == ["r1"]
+
+
+def test_watch_requires_a_known_recipient(tmp_path):
+    with make_client(tmp_path) as client:
+        client.post("/api/login", json={"token": "secret"})
+
+        missing = client.post("/api/watches", json={**WATCH_PAYLOAD, "recipient_ids": []})
+        assert missing.status_code == 400
+        assert "recipient" in missing.json()["detail"]
+
+        unknown = client.post("/api/watches", json={**WATCH_PAYLOAD, "recipient_ids": ["nope"]})
+        assert unknown.status_code == 400
+        assert "nope" in unknown.json()["detail"]
+
+        created = client.post("/api/watches", json=WATCH_PAYLOAD)
+        assert created.status_code == 201
+        assert created.json()["recipient_ids"] == ["r1"]
+
+
+def test_each_watch_notifies_only_its_own_recipients(tmp_path):
+    class CapturingNotifier:
+        def __init__(self):
+            self.calls = []
+
+        def send(self, title, message, recipient_ids=None):
+            self.calls.append(recipient_ids)
+            return {"sent": 1, "total": 1, "results": []}
+
+    with make_client(tmp_path) as client:
+        client.post("/api/login", json={"token": "secret"})
+        second = client.post(
+            "/api/settings/pushbullet", json={"label": "Bob", "token": "tok-bob"}
+        ).json()
+
+        mine = client.post("/api/watches", json=WATCH_PAYLOAD).json()
+        theirs = client.post(
+            "/api/watches", json={**WATCH_PAYLOAD, "recipient_ids": [second["id"]]}
+        ).json()
+
+        poller = client.app.state.poller
+        capture = CapturingNotifier()
+        poller.notifier = capture
+
+        asyncio.run(poller.check_watch(mine["id"], notify=True))
+        asyncio.run(poller.check_watch(theirs["id"], notify=True))
+
+        assert capture.calls == [["r1"], [second["id"]]]
+
+
+def test_deleting_recipient_strips_it_from_watches(tmp_path):
+    with make_client(tmp_path) as client:
+        client.post("/api/login", json={"token": "secret"})
+        watch = client.post("/api/watches", json=WATCH_PAYLOAD).json()
+        assert watch["recipient_ids"] == ["r1"]
+
+        assert client.delete("/api/settings/pushbullet/r1").status_code == 200
+
+        updated = client.get(f"/api/watches/{watch['id']}").json()
+        assert updated["recipient_ids"] == []
 
 
 def test_auth_disabled_allows_access(tmp_path):
@@ -370,16 +611,10 @@ def test_non_search_patch_keeps_found_state(tmp_path):
         client.post(f"/api/watches/{watch['id']}/check")
 
         edited = client.patch(
-            f"/api/watches/{watch['id']}", json={"pushbullet_device": "device-1"}
+            f"/api/watches/{watch['id']}", json={"interval_seconds": 120}
         ).json()
         assert edited["state"] == "found"
-        assert edited["pushbullet_device"] == "device-1"
-
-        cleared = client.patch(
-            f"/api/watches/{watch['id']}", json={"pushbullet_device": None}
-        ).json()
-        assert cleared["pushbullet_device"] is None
-        assert cleared["state"] == "found"
+        assert edited["interval_seconds"] == 120
 
         changed = client.patch(
             f"/api/watches/{watch['id']}", json={"movie_title": "Dune"}

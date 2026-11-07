@@ -27,6 +27,7 @@ def create_app(settings: Settings = None, api=None, notifier=None) -> FastAPI:
 
     db = Database(settings.database_path)
     db.init()
+    db.migrate()
 
     api = api or BookMyShowApi(CurlCffiHttpClient())
     bms = BmsService(api)

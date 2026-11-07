@@ -110,6 +110,17 @@ function describeWatchDates(watch) {
   return `${start} → ${end}`;
 }
 
+function describeWatchRecipients(watch) {
+  const recipients = (state.settings && state.settings.pushbullet_recipients) || [];
+  const ids = watch.recipient_ids || [];
+  if (!ids.length) return 'nobody — edit to pick a recipient';
+  const names = ids.map((id) => {
+    const found = recipients.find((item) => item.id === id);
+    return found ? found.label || found.token_hint : 'removed recipient';
+  });
+  return names.join(', ');
+}
+
 // -- dashboard ----------------------------------------------------------
 async function refreshWatches() {
   try {
@@ -147,6 +158,7 @@ function renderWatchCard(watch) {
       ${esc(describeWatchDates(watch))} · ${esc(formats)} · every ${esc(fmtInterval(watch.interval_seconds))}
     </div>
     <div class="card-meta" style="margin-top:.2rem">last checked ${esc(timeAgo(watch.last_checked_at))}</div>
+    <div class="card-meta" style="margin-top:.2rem">notifies ${esc(describeWatchRecipients(watch))}</div>
     ${watch.last_error ? `<p class="small error" style="margin-top:.4rem">${esc(watch.last_error)}</p>` : ''}
     ${
       matched
@@ -227,7 +239,9 @@ function startNewWizard() {
     dateStart: '',
     dateEnd: '',
     interval: 60,
-    device: (state.settings && state.settings.pushbullet_device) || '',
+    recipientIds: [],
+    allRecipients: true,
+    pendingToken: '',
   };
 }
 
@@ -254,7 +268,8 @@ function editWatch(watch) {
     dateStart: watch.date_start || '',
     dateEnd: watch.date_end || '',
     interval: watch.interval_seconds || 60,
-    device: watch.pushbullet_device || '',
+    recipientIds: [...(watch.recipient_ids || [])],
+    allRecipients: false,
   };
   setView('wizard');
 }
@@ -273,10 +288,19 @@ function canContinue() {
     case 'format':
       return true;
     case 'review':
-      return true;
+      return wizardRecipientIds().length > 0;
     default:
       return false;
   }
+}
+
+function wizardRecipientIds() {
+  const w = state.wizard;
+  const known = ((state.settings && state.settings.pushbullet_recipients) || []).map(
+    (item) => item.id
+  );
+  if (w.allRecipients) return known;
+  return w.recipientIds.filter((id) => known.includes(id));
 }
 
 function validDates() {
@@ -663,7 +687,24 @@ function stepReview() {
     [120, '2 minutes'],
     [300, '5 minutes'],
   ];
-  const tokenMissing = state.settings && !state.settings.token_configured;
+  const recipients = (state.settings && state.settings.pushbullet_recipients) || [];
+  const selected = wizardRecipientIds();
+  const recipientRows = recipients
+    .map((item) => {
+      const on = selected.includes(item.id);
+      return `
+      <button class="recipient-row pick ${on ? 'on' : ''}" data-recipient="${esc(item.id)}">
+        <span class="tick">${on ? '✓' : '○'}</span>
+        <span>
+          <span class="result-title">${esc(item.label || 'Unnamed recipient')}</span>
+          <span class="result-meta">${esc(item.token_hint)}${
+            item.source === 'env' ? ' · from environment' : ''
+          }</span>
+        </span>
+      </button>`;
+    })
+    .join('');
+
   el('#wizardBody').innerHTML = `
     <div class="summary">
       <div><span>Movie</span><span>${esc(w.movie.title)}</span></div>
@@ -682,25 +723,71 @@ function stepReview() {
           .join('')}
       </select>
     </label>
-    <label class="field">Pushbullet device iden (optional)
-      <input id="device" value="${esc(w.device || '')}" placeholder="Leave blank to notify all devices">
+    <div class="recipient-box">
+      <div><strong>Notify</strong> <span class="small muted">— tap to choose who gets this watch's alerts</span></div>
+      <div id="recipientPicker" class="results">
+        ${recipientRows || '<p class="muted small">No recipient yet — add a token below.</p>'}
+      </div>
+    </div>
+    <label class="field" style="margin-top:1rem">Add a Pushbullet token for this watch
+      <input id="newToken" type="password" autocomplete="off" placeholder="Paste token (optional)"
+             value="${esc(w.pendingToken || '')}">
     </label>
     <div class="row">
-      <button class="ghost" id="testPush">Send test notification</button>
+      <button class="ghost" id="addTokenBtn">Add &amp; select</button>
+      <button class="ghost" id="testPush">Send test to selected</button>
     </div>
     ${
-      tokenMissing
-        ? '<p class="small error" style="margin-top:.6rem">Pushbullet is not configured yet — add a token in Settings.</p>'
-        : ''
+      selected.length
+        ? ''
+        : '<p class="small error" style="margin-top:.6rem">Select at least one recipient for this watch.</p>'
     }
   `;
   el('#interval').addEventListener('change', (event) => {
     w.interval = parseInt(event.target.value, 10) || 60;
   });
-  el('#device').addEventListener('input', (event) => {
-    w.device = event.target.value.trim();
+  els('#recipientPicker [data-recipient]').forEach((button) => {
+    button.addEventListener('click', () => toggleRecipient(button.dataset.recipient));
   });
+  el('#addTokenBtn').addEventListener('click', addTokenForWatch);
   el('#testPush').addEventListener('click', testPush);
+  updateNav();
+}
+
+function toggleRecipient(recipientId) {
+  const w = state.wizard;
+  const current = wizardRecipientIds();
+  const next = current.includes(recipientId)
+    ? current.filter((id) => id !== recipientId)
+    : [...current, recipientId];
+  const pending = el('#newToken');
+  w.pendingToken = pending ? pending.value : '';
+  w.allRecipients = false;
+  w.recipientIds = next;
+  renderWizard();
+}
+
+async function addTokenForWatch() {
+  const input = el('#newToken');
+  const token = (input && input.value.trim()) || '';
+  if (!token) {
+    showToast('Paste a Pushbullet token first', 'error');
+    return;
+  }
+  try {
+    const created = await api('/api/settings/pushbullet', {
+      method: 'POST',
+      body: JSON.stringify({ token, label: '' }),
+    });
+    state.settings = await api('/api/settings');
+    const w = state.wizard;
+    w.allRecipients = false;
+    w.recipientIds = [...new Set([...wizardRecipientIds(), created.id])];
+    showToast('Token added and selected');
+    renderWizard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 function describeWizardDates() {
@@ -730,7 +817,7 @@ async function saveWatch() {
     date_start: w.dateMode === 'exact' || w.dateMode === 'range' ? w.dateStart || null : null,
     date_end: w.dateMode === 'range' ? w.dateEnd || null : null,
     interval_seconds: w.interval,
-    pushbullet_device: w.device || null,
+    recipient_ids: wizardRecipientIds(),
   };
   try {
     if (w.editId) {
@@ -750,8 +837,22 @@ async function saveWatch() {
 
 async function testPush() {
   try {
-    await api('/api/notifications/test', { method: 'POST' });
-    showToast('Test notification sent');
+    const inWizard = state.view === 'wizard';
+    const selected = inWizard ? wizardRecipientIds() : null;
+    const response = await api('/api/notifications/test', {
+      method: 'POST',
+      body: JSON.stringify({ recipient_ids: selected }),
+    });
+    const result = response && response.result;
+    if (result && result.total) {
+      if (result.sent < result.total) {
+        showToast(`Sent to ${result.sent} of ${result.total} — some recipients failed`, 'error');
+      } else {
+        showToast(`Test sent to ${result.sent} recipient(s)`);
+      }
+    } else {
+      showToast('Test notification sent');
+    }
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -767,36 +868,56 @@ async function renderSettings() {
     return;
   }
   const s = state.settings;
+  const recipients = s.pushbullet_recipients || [];
   section.innerHTML = `
     <h1>Settings</h1>
     <div class="card">
-      <h2>Pushbullet</h2>
-      <p class="small muted">Create a token at pushbullet.com → Settings → Access Tokens.</p>
-      <p style="margin:.6rem 0">
-        ${
-          s.token_configured
-            ? `<span class="badge found">configured</span> <span class="small muted">${esc(s.token_hint || '')}${
-                s.token_source ? ` (from ${esc(s.token_source)})` : ''
-              }</span>`
-            : '<span class="badge error">not configured</span>'
-        }
+      <h2>Pushbullet recipients</h2>
+      <p class="small muted">
+        Add the Pushbullet access token of each person who should get alerts
+        (pushbullet.com → Settings → Access Tokens). Tokens are stored on this
+        server and never shown again — no environment variable needed.
       </p>
-      <label class="field">Access token
-        <input id="pbToken" type="password" autocomplete="off"
-               placeholder="${s.token_configured ? 'Replace existing token' : 'Paste token'}">
+      <div id="recipientList" class="results">
+        ${
+          recipients.length
+            ? recipients
+                .map(
+                  (item) => `
+              <div class="recipient-row">
+                <div>
+                  <div class="result-title">${esc(item.label || 'Unnamed recipient')}</div>
+                  <div class="result-meta">${esc(item.token_hint)}${
+                    item.device ? ' · device ' + esc(item.device) : ''
+                  }${item.source === 'env' ? ' · from environment' : ''}</div>
+                </div>
+                ${
+                  item.source === 'env'
+                    ? '<span class="badge">env</span>'
+                    : `<button class="danger" data-remove="${esc(item.id)}">Remove</button>`
+                }
+              </div>`
+                )
+                .join('')
+            : '<p class="muted small">No recipients yet — add the first one below.</p>'
+        }
+      </div>
+    </div>
+    <div class="card" style="margin-top:.8rem">
+      <h2>Add a recipient</h2>
+      <label class="field">Label (optional)
+        <input id="rcpLabel" placeholder="e.g. Ali's phone">
+      </label>
+      <label class="field">Pushbullet access token
+        <input id="rcpToken" type="password" autocomplete="off" placeholder="Paste token">
       </label>
       <label class="field">Device iden (optional)
-        <input id="pbDevice" value="${esc(s.pushbullet_device || '')}" placeholder="Leave blank to notify all devices">
+        <input id="rcpDevice" placeholder="Leave blank to notify all devices">
       </label>
       <div class="row">
-        <button class="primary" id="saveSettings">Save</button>
-        <button class="ghost" id="settingsTestPush">Send test</button>
+        <button class="primary" id="addRecipient">Add recipient</button>
+        <button class="ghost" id="settingsTestPush">Send test to all</button>
       </div>
-      ${
-        s.token_source === 'env'
-          ? '<p class="small muted" style="margin-top:.6rem">The token comes from the <code>PUSHBULLET_TOKEN</code> environment variable and overrides anything saved here.</p>'
-          : ''
-      }
     </div>
     <div class="card" style="margin-top:.8rem">
       <h2>Session</h2>
@@ -810,18 +931,10 @@ async function renderSettings() {
       </div>
     </div>
   `;
-  el('#saveSettings').addEventListener('click', async () => {
-    try {
-      const token = el('#pbToken').value.trim();
-      const body = { pushbullet_device: el('#pbDevice').value };
-      if (token) body.pushbullet_token = token;
-      state.settings = await api('/api/settings', { method: 'PATCH', body: JSON.stringify(body) });
-      showToast('Settings saved');
-      renderSettings();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  els('[data-remove]').forEach((button) => {
+    button.addEventListener('click', () => removeRecipient(button.dataset.remove));
   });
+  el('#addRecipient').addEventListener('click', addRecipient);
   el('#settingsTestPush').addEventListener('click', testPush);
   const logout = el('#logoutBtn');
   if (logout) {
@@ -833,6 +946,41 @@ async function renderSettings() {
       }
       window.location.href = '/login';
     });
+  }
+}
+
+async function addRecipient() {
+  const token = el('#rcpToken').value.trim();
+  if (!token) {
+    showToast('Paste a Pushbullet access token first', 'error');
+    return;
+  }
+  try {
+    await api('/api/settings/pushbullet', {
+      method: 'POST',
+      body: JSON.stringify({
+        token,
+        label: el('#rcpLabel').value.trim(),
+        device: el('#rcpDevice').value.trim(),
+      }),
+    });
+    showToast('Recipient added');
+    await renderSettings();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function removeRecipient(recipientId) {
+  if (!window.confirm('Remove this recipient? They will stop receiving alerts.')) return;
+  try {
+    await api(`/api/settings/pushbullet/${encodeURIComponent(recipientId)}`, {
+      method: 'DELETE',
+    });
+    showToast('Recipient removed');
+    await renderSettings();
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 

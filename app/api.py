@@ -1,4 +1,5 @@
 from datetime import datetime
+import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Response
@@ -27,7 +28,7 @@ class WatchCreate(BaseModel):
     date_start: Optional[str] = None
     date_end: Optional[str] = None
     interval_seconds: int = 60
-    pushbullet_device: Optional[str] = None
+    recipient_ids: List[str] = Field(default_factory=list)
 
 
 class WatchUpdate(BaseModel):
@@ -45,12 +46,23 @@ class WatchUpdate(BaseModel):
     date_start: Optional[str] = None
     date_end: Optional[str] = None
     interval_seconds: Optional[int] = None
-    pushbullet_device: Optional[str] = None
+    recipient_ids: Optional[List[str]] = None
 
 
-class SettingsUpdate(BaseModel):
-    pushbullet_token: Optional[str] = None
-    pushbullet_device: Optional[str] = None
+class RecipientCreate(BaseModel):
+    token: str
+    label: str = ""
+    device: str = ""
+
+
+class RecipientUpdate(BaseModel):
+    token: Optional[str] = None
+    label: Optional[str] = None
+    device: Optional[str] = None
+
+
+class TestNotification(BaseModel):
+    recipient_ids: Optional[List[str]] = None
 
 
 def _valid_date_code(value: Optional[str]) -> bool:
@@ -84,8 +96,21 @@ SEARCH_FIELDS = {
 def build_router(db, bms, poller, notifier, settings) -> APIRouter:
     router = APIRouter(prefix="/api")
 
-    def effective_token() -> Optional[str]:
-        return settings.env_pushbullet_token or db.get_setting("pushbullet_token")
+    def known_recipient_ids() -> set:
+        stored = db.get_json_setting("pushbullet_recipients", []) or []
+        ids = {item.get("id") for item in stored if item.get("id")}
+        if settings.env_pushbullet_token:
+            ids.add("env")
+        return ids
+
+    def mask_recipient(recipient: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": recipient["id"],
+            "label": recipient.get("label") or "",
+            "device": recipient.get("device") or "",
+            "token_hint": _mask(recipient["token"]),
+            "source": recipient.get("source", "database"),
+        }
 
     def enrich(data: Dict[str, Any]) -> Dict[str, Any]:
         region_code = data.get("region_code")
@@ -130,6 +155,16 @@ def build_router(db, bms, poller, notifier, settings) -> APIRouter:
         if interval < MIN_INTERVAL_SECONDS:
             raise HTTPException(400, f"interval_seconds must be >= {MIN_INTERVAL_SECONDS}")
 
+        wanted = list(dict.fromkeys(data.get("recipient_ids") or []))
+        if not wanted:
+            raise HTTPException(
+                400, "recipient_ids must contain at least one Pushbullet recipient"
+            )
+        known = known_recipient_ids()
+        unknown = [item for item in wanted if item not in known]
+        if unknown:
+            raise HTTPException(400, f"unknown recipient(s): {', '.join(unknown)}")
+
     def normalise(data: Dict[str, Any]) -> Dict[str, Any]:
         out = dict(data)
         if out.get("region_code"):
@@ -142,6 +177,10 @@ def build_router(db, bms, poller, notifier, settings) -> APIRouter:
             out["formats"] = [f.strip() for f in out["formats"] if f and f.strip()]
         if out.get("date_mode"):
             out["date_mode"] = out["date_mode"].strip().lower()
+        if out.get("recipient_ids") is not None:
+            out["recipient_ids"] = list(
+                dict.fromkeys(item.strip() for item in out["recipient_ids"] if item and item.strip())
+            )
         return out
 
     # -- auth -------------------------------------------------------------
@@ -285,36 +324,78 @@ def build_router(db, bms, poller, notifier, settings) -> APIRouter:
     # -- settings ---------------------------------------------------------
     @router.get("/settings")
     def get_settings():
-        token = effective_token()
+        recipients = notifier.recipients()
         return {
-            "token_configured": bool(token),
-            "token_hint": _mask(token),
-            "token_source": "env" if settings.env_pushbullet_token else (
-                "database" if db.get_setting("pushbullet_token") else None
-            ),
-            "pushbullet_device": db.get_setting("pushbullet_device") or "",
+            "pushbullet_recipients": [mask_recipient(item) for item in recipients],
+            "token_configured": bool(recipients),
             "auth_enabled": bool(settings.app_token),
         }
 
-    @router.patch("/settings")
-    def patch_settings(payload: SettingsUpdate):
-        if payload.pushbullet_token is not None:
-            token = payload.pushbullet_token.strip()
-            db.set_setting("pushbullet_token", token or None)
-        if payload.pushbullet_device is not None:
-            device = payload.pushbullet_device.strip()
-            db.set_setting("pushbullet_device", device or None)
-        return get_settings()
+    @router.post("/settings/pushbullet", status_code=201)
+    def add_recipient(payload: RecipientCreate):
+        token = payload.token.strip()
+        if not token:
+            raise HTTPException(400, "token is required")
+
+        stored = db.get_json_setting("pushbullet_recipients", []) or []
+        if token == settings.env_pushbullet_token or any(
+            (item.get("token") or "").strip() == token for item in stored
+        ):
+            raise HTTPException(409, "this token is already configured")
+
+        recipient = {
+            "id": uuid.uuid4().hex[:8],
+            "label": payload.label.strip(),
+            "token": token,
+            "device": payload.device.strip(),
+        }
+        stored.append(recipient)
+        db.set_json_setting("pushbullet_recipients", stored)
+        return mask_recipient({**recipient, "source": "database"})
+
+    @router.patch("/settings/pushbullet/{recipient_id}")
+    def update_recipient(recipient_id: str, payload: RecipientUpdate):
+        if recipient_id == "env":
+            raise HTTPException(400, "this recipient comes from PUSHBULLET_TOKEN")
+
+        stored = db.get_json_setting("pushbullet_recipients", []) or []
+        for item in stored:
+            if item.get("id") != recipient_id:
+                continue
+            if payload.label is not None:
+                item["label"] = payload.label.strip()
+            if payload.device is not None:
+                item["device"] = payload.device.strip()
+            if payload.token is not None and payload.token.strip():
+                item["token"] = payload.token.strip()
+            db.set_json_setting("pushbullet_recipients", stored)
+            return mask_recipient({**item, "source": "database"})
+        raise HTTPException(404, "recipient not found")
+
+    @router.delete("/settings/pushbullet/{recipient_id}")
+    def remove_recipient(recipient_id: str):
+        if recipient_id == "env":
+            raise HTTPException(400, "this recipient comes from PUSHBULLET_TOKEN")
+
+        stored = db.get_json_setting("pushbullet_recipients", []) or []
+        remaining = [item for item in stored if item.get("id") != recipient_id]
+        if len(remaining) == len(stored):
+            raise HTTPException(404, "recipient not found")
+        db.set_json_setting("pushbullet_recipients", remaining)
+        db.remove_recipient_from_watches(recipient_id)
+        return {"ok": True}
 
     @router.post("/notifications/test")
-    def test_notification():
+    def test_notification(payload: TestNotification = None):
+        target = payload.recipient_ids if payload else None
         try:
-            notifier.send(
+            result = notifier.send(
                 "BMS watcher test",
                 "If you can read this, Pushbullet notifications are wired up.",
+                recipient_ids=target,
             )
         except Exception as exc:
             raise HTTPException(400, str(exc))
-        return {"ok": True}
+        return {"ok": True, "result": result}
 
     return router
