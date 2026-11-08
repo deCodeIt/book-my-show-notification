@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# Brings the notifier container up from the repo. Safe to run repeatedly.
+# Builds the image from this project and (re)creates the container.
 #
-# The repo may live on an external volume, which launchd cannot read, so this
-# script publishes a self-contained bundle to internal disk:
-#   ~/Library/Application Support/bms-notifier/docker-compose.yml
-#   ~/Library/Application Support/bms-notifier/.env      (resolved values)
-# deploy/autostart.sh runs that bundle at login.
+#   ./deploy/start-bms.sh
+#
+# The image is stored locally by Docker (bms-notifier:latest) and the database
+# lives in the Docker volume book-my-show-notification_bms_data, so nothing is
+# copied outside the project. Re-run this after changing the code or .env.
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE_DIR="$HOME/Library/Application Support/bms-notifier"
+IMAGE="bms-notifier:latest"
+CONTAINER="bms-notifier"
+VOLUME="book-my-show-notification_bms_data"
+DATA_DIR="${BMS_DATA_DIR:-$HOME/docker/drive/bms}"
+PORT="${PORT:-7654}"
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 docker_ready() { docker info >/dev/null 2>&1; }
 
 if ! docker_ready; then
+  echo "Starting Docker..."
   open -a Docker >/dev/null 2>&1 || true
   for _ in $(seq 1 100); do
     docker_ready && break
@@ -26,31 +31,47 @@ if ! docker_ready; then
   exit 1
 fi
 
-mkdir -p "$BUNDLE_DIR"
-cp "$PROJECT_DIR/docker-compose.yml" "$BUNDLE_DIR/docker-compose.yml"
-install -m 755 "$PROJECT_DIR/deploy/autostart.sh" "$BUNDLE_DIR/autostart.sh"
+# .env is the single source of truth for runtime settings.
+if [ -f "$PROJECT_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$PROJECT_DIR/.env"
+  set +a
+fi
 
-# Bake the values the container needs, with absolute paths, so the bundle never
-# depends on the external drive or on launchd's environment.
-env_value() {
-  local key="$1" fallback="$2" value=""
-  if [ -f "$PROJECT_DIR/.env" ]; then
-    value="$(sed -n "s/^${key}=//p" "$PROJECT_DIR/.env" | tail -1 | tr -d '\r')"
+echo "Building $IMAGE from $PROJECT_DIR"
+docker build -t "$IMAGE" "$PROJECT_DIR"
+
+# Named volume backed by a directory on internal disk. Created once; keeps data.
+mkdir -p "$DATA_DIR"
+if ! docker volume inspect "$VOLUME" >/dev/null 2>&1; then
+  echo "Creating volume $VOLUME -> $DATA_DIR"
+  docker volume create --driver local \
+    --opt type=none --opt o=bind --opt device="$DATA_DIR" "$VOLUME" >/dev/null
+fi
+
+echo "Recreating container $CONTAINER on port $PORT"
+docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+docker run -d \
+  --name "$CONTAINER" \
+  --restart unless-stopped \
+  -p "${PORT}:7654" \
+  -v "${VOLUME}:/data" \
+  -e BMS_DB_PATH=/data/bms.db \
+  -e BMS_TIMEZONE=Asia/Kolkata \
+  -e TZ=Asia/Kolkata \
+  -e APP_TOKEN="${APP_TOKEN:-}" \
+  -e PUSHBULLET_TOKEN="${PUSHBULLET_TOKEN:-}" \
+  -e BMS_DEFAULT_INTERVAL="${BMS_DEFAULT_INTERVAL:-60}" \
+  "$IMAGE" >/dev/null
+
+echo "Waiting for health..."
+for _ in $(seq 1 30); do
+  if curl -fsS -m 3 "http://127.0.0.1:${PORT}/healthz" >/dev/null 2>&1; then
+    echo "Up: http://localhost:${PORT}"
+    exit 0
   fi
-  printf '%s' "${value:-$fallback}"
-}
-
-umask 077
-cat > "$BUNDLE_DIR/.env" <<EOF
-APP_TOKEN=$(env_value APP_TOKEN "")
-PUSHBULLET_TOKEN=$(env_value PUSHBULLET_TOKEN "")
-BMS_DEFAULT_INTERVAL=$(env_value BMS_DEFAULT_INTERVAL "60")
-PORT=$(env_value PORT "7654")
-BMS_DATA_DIR=${BMS_DATA_DIR:-$HOME/docker/drive/bms}
-EOF
-
-echo "Bundle written to $BUNDLE_DIR"
-
-# Build (and run) from the repo, which has the Dockerfile and source.
-cd "$PROJECT_DIR"
-docker compose up -d --build --remove-orphans
+  sleep 1
+done
+echo "Container started but health did not respond yet; check 'docker logs $CONTAINER'" >&2
+exit 1

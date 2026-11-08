@@ -65,31 +65,29 @@ A recipient that fails (revoked token, network) is skipped; the others still get
 
 ### Start on boot (macOS)
 
-The container uses `restart: unless-stopped`, so if Docker Desktop is running at login the notifier comes back by itself. Also enable Docker Desktop → Settings → General → *Start Docker Desktop when you sign in*.
-
-The LaunchAgent is the belt-and-braces option: it starts Docker Desktop if needed and brings the container back.
+Two commands, and nothing is copied outside the project:
 
 ```bash
-./deploy/install-launchagent.sh     # publishes the bundle, starts the service, installs + loads the agent
-./deploy/uninstall-launchagent.sh   # removes the agent and bundle
+./deploy/start-bms.sh            # build the image + (re)create the container
+./deploy/install-launchagent.sh  # same, plus install the login agent
+./deploy/uninstall-launchagent.sh
 ```
 
-`install-launchagent.sh` does everything, so a fresh machine only needs that one command after the first `docker compose up -d --build`.
+How it is put together:
 
-#### Why there is a bundle
+- **The image** is built from this repo and kept in Docker's local store as `bms-notifier:latest`. Docker lives on the internal disk, so the running app never depends on the external drive.
+- **The container** is created with a plain `docker run` (port 7654, `--restart unless-stopped`, the `bms_data` volume, and the env values from `.env`).
+- **The login agent** is a single file, `~/Library/LaunchAgents/com.local.bms-notifier.plist`, which holds that `docker run` command inline (no shell script, no compose copy, no Application Support directory). It is `chmod 600` because `APP_TOKEN` is embedded in it.
 
-macOS denies launchd-spawned processes access to **external volumes**, so an agent cannot read a repo stored on one (it exits 126 with "Operation not permitted"). The scripts therefore publish a self-contained bundle to internal disk:
+macOS denies launchd-spawned processes access to external volumes, so the plist cannot read the repo — hence the command is self-contained. At login the agent:
 
-```
-~/Library/Application Support/bms-notifier/
-├── docker-compose.yml     # copy of the repo compose file (project/volume names pinned)
-├── .env                   # resolved values, absolute paths, chmod 600
-└── autostart.sh           # the runner launchd executes
-```
+1. starts Docker Desktop if the daemon is not up (waits up to 5 minutes),
+2. `docker start bms-notifier` if the container exists,
+3. otherwise recreates it with the inline `docker run`, using the same image and volume.
 
-`deploy/start-bms.sh` builds and starts from the repo, then refreshes that bundle. The agent runs the bundle, so at login it can **recreate** the container even if Docker Desktop lost all container definitions — the `bms_data` volume keeps your watches.
+Because the database lives in the `bms_data` volume, recreating the container never loses watches.
 
-Re-run `./deploy/start-bms.sh` after editing `docker-compose.yml` or `.env` so the bundle picks up the change. Code changes need a rebuild, which only the repo path does.
+Re-run `./deploy/install-launchagent.sh` after changing `.env` (values are baked into the plist) or after moving the project. Code changes only need `./deploy/start-bms.sh`. `docker-compose.yml` still works for ad-hoc use and produces the same container and volume names.
 
 #### Verify
 
@@ -97,10 +95,12 @@ Re-run `./deploy/start-bms.sh` after editing `docker-compose.yml` or `.env` so t
 launchctl print "gui/$(id -u)/com.local.bms-notifier" | grep -E "state|last exit code"
 docker stop bms-notifier
 launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # restart path
+docker rm -f bms-notifier
+launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # recreate path
 curl -s http://localhost:7654/healthz
 ```
 
-Logs: `/tmp/bms-notifier.log`, `/tmp/bms-notifier.err`, and `~/Library/Application Support/bms-notifier/compose.log` when the agent has to recreate the container.
+Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
 
 ### Notification rules
 
