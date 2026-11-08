@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+bmsenv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+data
+tests
+deploy
+.env
+*.md
+LICENSE

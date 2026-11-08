@@ -1,0 +1,33 @@
+# Project name is pinned so the container and volume keep their names no matter
+# which directory the compose file is invoked from (the LaunchAgent runs an
+# internal-disk copy).
+name: book-my-show-notification
+
+services:
+  bms-notifier:
+    build: .
+    image: bms-notifier:latest
+    container_name: bms-notifier
+    restart: unless-stopped
+    ports:
+      - "${PORT:-7654}:7654"
+    volumes:
+      - bms_data:/data
+    environment:
+      BMS_DB_PATH: /data/bms.db
+      BMS_TIMEZONE: Asia/Kolkata
+      TZ: Asia/Kolkata
+      APP_TOKEN: ${APP_TOKEN:-}
+      PUSHBULLET_TOKEN: ${PUSHBULLET_TOKEN:-}
+      BMS_DEFAULT_INTERVAL: ${BMS_DEFAULT_INTERVAL:-60}
+
+volumes:
+  # Named volume, physically stored on the internal SSD so the service never
+  # depends on an external drive being mounted.
+  bms_data:
+    name: book-my-show-notification_bms_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BMS_DATA_DIR:-${HOME}/docker/drive/bms}

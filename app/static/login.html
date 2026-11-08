@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · BMS Watcher</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <div class="brand big">🎬 BMS Watcher</div>
+    <p class="muted">Enter the access token to continue.</p>
+    <form id="loginForm">
+      <label class="field">
+        Access token
+        <input id="token" type="password" autocomplete="current-password" autofocus required>
+      </label>
+      <button class="primary full" type="submit">Sign in</button>
+      <p id="loginError" class="error hidden">Invalid token</p>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById('loginForm');
+    const error = document.getElementById('loginError');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.classList.add('hidden');
+      const token = document.getElementById('token').value;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      if (res.ok) {
+        window.location.href = '/';
+      } else {
+        error.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
