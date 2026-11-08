@@ -18,7 +18,7 @@ One container, one process, one SQLite file. It serves the web UI and polls Book
 
 ```bash
 cp .env.example .env          # set APP_TOKEN (auth for the web UI)
-docker compose up -d --build
+./deploy/start-bms.sh         # build the image and start the container
 open http://localhost:7654
 ```
 
@@ -26,19 +26,19 @@ Create a watch in the UI: city → cinema → movie (or type a title for an upco
 
 ### Data location
 
-State lives in a Docker **named volume** called `bms_data`, which is backed by a plain directory on the internal SSD:
+State lives in a Docker **named volume** (`book-my-show-notification_bms_data`, referred to as `bms_data` in the compose file) backed by a plain directory on the internal SSD:
 
 ```
-~/docker/drive/bms/bms.db          # host directory (create it once)
-        ↕  bms_data (named volume, bind driver)
-/data                              # inside the container
+~/docker/drive/bms/bms.db                        # host directory (internal disk)
+        ↕  book-my-show-notification_bms_data     # named volume, bind driver
+/data                                            # inside the container
 ```
 
 ```bash
-mkdir -p ~/docker/drive/bms        # required once, before the first `up`
+mkdir -p ~/docker/drive/bms        # required once, before the first start
 ```
 
-Override the host directory with `BMS_DATA_DIR` (absolute path) in `.env`. Because the directory is on internal disk, the service no longer depends on an external drive being mounted, and `docker compose down` never deletes your watches (that would need `-v`).
+`./deploy/start-bms.sh` creates the directory and the volume for you. Override the host directory with `BMS_DATA_DIR` (absolute path) in `.env`. Because it is on internal disk, the service never depends on an external drive being mounted, and neither `docker compose down` nor recreating the container deletes your watches (only `down -v` or `docker volume rm` would).
 
 ### Configuration
 
@@ -51,7 +51,7 @@ Override the host directory with `BMS_DATA_DIR` (absolute path) in `.env`. Becau
 | `BMS_TIMEZONE` | `Asia/Kolkata` | Timezone used to resolve "today" / "tomorrow". |
 | `BMS_DEFAULT_INTERVAL` | `60` | Default poll interval in seconds. |
 | `BMS_POLL_TICK` | `5` | How often the scheduler wakes up. |
-| `PORT` | `7654` | Host port published by compose (the container always listens on 7654). Local `python -m app` runs honour it too. |
+| `PORT` | `7654` | Host port published by the container (the app always listens on 7654 inside). Read by `./deploy/start-bms.sh` and baked into the launch agent. |
 
 Get a Pushbullet token from pushbullet.com → Settings → Access Tokens, then add it under **Settings → Pushbullet recipients** in the UI. No environment variable is required — add one entry per person who wants alerts.
 
@@ -63,44 +63,77 @@ Delivery is **per watch**: when you create or edit a watch you tick which recipi
 
 A recipient that fails (revoked token, network) is skipped; the others still get the alert. If every recipient for a watch fails, the watch stays **watching** and retries on the next tick, with the error shown on the card — so a transient failure never silently loses an alert.
 
-### Start on boot (macOS)
+### macOS: run it on this machine
 
-Two commands, and nothing is copied outside the project:
+Requirements: macOS with [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed (`/Applications/Docker.app`) and `/usr/local/bin/docker` available. Nothing else — no Python, no compose plugin, no Homebrew packages.
+
+#### One-time setup
 
 ```bash
-./deploy/start-bms.sh            # build the image + (re)create the container
-./deploy/install-launchagent.sh  # same, plus install the login agent
-./deploy/uninstall-launchagent.sh
+cp .env.example .env                 # 1. set APP_TOKEN, optionally change PORT
+./deploy/install-launchagent.sh      # 2. build image, start container, install login agent
+open http://localhost:7654           # 3. add watches + Pushbullet recipients in the UI
 ```
 
-How it is put together:
+Then, so the service survives a reboot without you touching anything:
 
-- **The image** is built from this repo and kept in Docker's local store as `bms-notifier:latest`. Docker lives on the internal disk, so the running app never depends on the external drive.
-- **The container** is created with a plain `docker run` (port 7654, `--restart unless-stopped`, the `bms_data` volume, and the env values from `.env`).
-- **The login agent** is a single file, `~/Library/LaunchAgents/com.local.bms-notifier.plist`, which holds that `docker run` command inline (no shell script, no compose copy, no Application Support directory). It is `chmod 600` because `APP_TOKEN` is embedded in it.
+| Setting | Where | Why |
+|---|---|---|
+| *Start Docker Desktop when you sign in* | Docker Desktop → Settings → General | the daemon must be running for the container to come back |
+| *Automatically log in as …* | System Settings → Users & Groups | launch agents only run after a user logs in |
+| FileVault **off** | System Settings → Privacy & Security | with FileVault on, someone must unlock the disk before anything auto-starts |
 
-macOS denies launchd-spawned processes access to external volumes, so the plist cannot read the repo — hence the command is self-contained. At login the agent:
+#### What happens at login
 
-1. starts Docker Desktop if the daemon is not up (waits up to 5 minutes),
-2. `docker start bms-notifier` if the container exists,
-3. otherwise recreates it with the inline `docker run`, using the same image and volume.
+`~/Library/LaunchAgents/com.local.bms-notifier.plist` runs one inline shell command:
 
-Because the database lives in the `bms_data` volume, recreating the container never loses watches.
+1. if the Docker daemon is not up, start Docker Desktop and wait (up to 5 minutes);
+2. if the container exists → `docker start bms-notifier`;
+3. if the container is gone → recreate it from the local image `bms-notifier:latest` with `docker run` (port, volume and env inline);
+4. the database is in the `bms_data` volume, so recreating never loses watches.
 
-Re-run `./deploy/install-launchagent.sh` after changing `.env` (values are baked into the plist) or after moving the project. Code changes only need `./deploy/start-bms.sh`. `docker-compose.yml` still works for ad-hoc use and produces the same container and volume names.
+Nothing is copied outside the project: the image lives in Docker's local store, the data in the volume, and the specs in the plist. The plist is `chmod 600` because `APP_TOKEN` is embedded in it.
+
+#### Why the plist holds the command
+
+macOS blocks launchd-spawned processes from reading **external volumes** (`Operation not permitted`, exit `126`). This project can live on an external drive, so the agent cannot read a script or compose file from the repo — the command must be self-contained. That is also why the data volume and Docker itself must stay on the internal disk.
+
+#### Everyday commands
+
+```bash
+./deploy/start-bms.sh                # rebuild image + recreate container (after code or .env changes)
+./deploy/install-launchagent.sh      # same, plus re-write the plist (after .env changes or moving the project)
+./deploy/uninstall-launchagent.sh    # remove the login agent; container keeps running
+```
 
 #### Verify
 
 ```bash
 launchctl print "gui/$(id -u)/com.local.bms-notifier" | grep -E "state|last exit code"
-docker stop bms-notifier
-launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # restart path
-docker rm -f bms-notifier
-launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # recreate path
 curl -s http://localhost:7654/healthz
+
+docker stop bms-notifier                                               # restart path
+launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"
+
+docker rm -f bms-notifier                                              # recreate path
+launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"
 ```
 
-Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
+Expected after each kickstart: `last exit code = 0` and `{"status":"ok"}`.
+
+Logs: `/tmp/bms-notifier.log` (success lines) and `/tmp/bms-notifier.err` (failures). Both are wiped on reboot, so they only describe the current boot.
+
+#### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `last exit code = 126`, log says `Operation not permitted` | the agent tried to read the external-drive repo | you are running an old setup; re-run `./deploy/install-launchagent.sh` |
+| `No such container: bms-notifier` | the container was deleted (Docker Desktop lost its state) | the current agent recreates it; run `launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"` |
+| Nothing in `/tmp/bms-notifier.log` | the agent never ran — no login, or the plist is not loaded | log in, then `launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.local.bms-notifier.plist` |
+| `ERROR: docker daemon unavailable` | Docker Desktop did not start in 5 minutes | open Docker Desktop manually and check *Start Docker Desktop when you sign in* |
+| Browser shows a connection error | container stopped, or Docker is not running | `docker ps -a --filter name=bms-notifier`, then `./deploy/start-bms.sh` |
+| UI login rejects the token | `APP_TOKEN` changed but the container was not recreated | `./deploy/start-bms.sh` |
+| Watches look empty | container is using a different volume | `docker volume inspect book-my-show-notification_bms_data` should show `~/docker/drive/bms` |
 
 ### Notification rules
 
