@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# Installs a per-user LaunchAgent so the notifier comes back after login/reboot.
+# Installs the macOS autostart agent and publishes the internal-disk bundle.
+# Safe to re-run after changing docker-compose.yml or .env.
 set -euo pipefail
 
 LABEL="com.local.bms-notifier"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-# launchd cannot read external volumes, so the job runs from internal disk.
-RUNNER="$HOME/Library/Application Support/bms-notifier/autostart.sh"
+BUNDLE_DIR="$HOME/Library/Application Support/bms-notifier"
+RUNNER="$BUNDLE_DIR/autostart.sh"
 
-mkdir -p "$HOME/Library/LaunchAgents" "$(dirname "$RUNNER")"
-chmod +x "$PROJECT_DIR/deploy/start-bms.sh" "$PROJECT_DIR/deploy/autostart.sh"
-cp "$PROJECT_DIR/deploy/autostart.sh" "$RUNNER"
-chmod +x "$RUNNER"
+chmod +x "$PROJECT_DIR"/deploy/*.sh
+
+# Publish the bundle (compose file + resolved env) and start the container.
+# The bundle lives on internal disk because launchd cannot read external volumes.
+bash "$PROJECT_DIR/deploy/start-bms.sh"
+
+mkdir -p "$HOME/Library/LaunchAgents"
 
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -45,7 +49,8 @@ EOF
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$PLIST"
 
+echo
 echo "Installed $PLIST"
-echo "Runner: $RUNNER"
-echo "Logs: /tmp/bms-notifier.log and /tmp/bms-notifier.err"
-echo "UI:   http://localhost:7654"
+echo "Bundle:  $BUNDLE_DIR (compose file + .env, internal disk)"
+echo "Logs:    /tmp/bms-notifier.log and /tmp/bms-notifier.err"
+echo "UI:      http://localhost:7654"

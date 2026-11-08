@@ -1,3 +1,8 @@
+# Project name is pinned so the container and volume keep their names no matter
+# which directory the compose file is invoked from (the LaunchAgent runs an
+# internal-disk copy).
+name: book-my-show-notification
+
 services:
   bms-notifier:
     build: .
@@ -20,6 +25,7 @@ volumes:
   # Named volume, physically stored on the internal SSD so the service never
   # depends on an external drive being mounted.
   bms_data:
+    name: book-my-show-notification_bms_data
     driver: local
     driver_opts:
       type: none

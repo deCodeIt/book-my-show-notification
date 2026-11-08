@@ -65,31 +65,42 @@ A recipient that fails (revoked token, network) is skipped; the others still get
 
 ### Start on boot (macOS)
 
-The container itself uses `restart: unless-stopped`, so **if Docker Desktop is running at login, the notifier comes back by itself**. Enable that once in Docker Desktop → Settings → General → *Start Docker Desktop when you sign in*.
+The container uses `restart: unless-stopped`, so if Docker Desktop is running at login the notifier comes back by itself. Also enable Docker Desktop → Settings → General → *Start Docker Desktop when you sign in*.
 
-The LaunchAgent is the belt-and-braces option: it starts Docker Desktop if needed, then starts the container.
+The LaunchAgent is the belt-and-braces option: it starts Docker Desktop if needed and brings the container back.
 
 ```bash
-./deploy/install-launchagent.sh     # installs ~/Library/LaunchAgents/com.local.bms-notifier.plist
-./deploy/uninstall-launchagent.sh   # removes it
+./deploy/install-launchagent.sh     # publishes the bundle, starts the service, installs + loads the agent
+./deploy/uninstall-launchagent.sh   # removes the agent and bundle
 ```
 
-Verify it is registered and healthy:
+`install-launchagent.sh` does everything, so a fresh machine only needs that one command after the first `docker compose up -d --build`.
+
+#### Why there is a bundle
+
+macOS denies launchd-spawned processes access to **external volumes**, so an agent cannot read a repo stored on one (it exits 126 with "Operation not permitted"). The scripts therefore publish a self-contained bundle to internal disk:
+
+```
+~/Library/Application Support/bms-notifier/
+├── docker-compose.yml     # copy of the repo compose file (project/volume names pinned)
+├── .env                   # resolved values, absolute paths, chmod 600
+└── autostart.sh           # the runner launchd executes
+```
+
+`deploy/start-bms.sh` builds and starts from the repo, then refreshes that bundle. The agent runs the bundle, so at login it can **recreate** the container even if Docker Desktop lost all container definitions — the `bms_data` volume keeps your watches.
+
+Re-run `./deploy/start-bms.sh` after editing `docker-compose.yml` or `.env` so the bundle picks up the change. Code changes need a rebuild, which only the repo path does.
+
+#### Verify
 
 ```bash
 launchctl print "gui/$(id -u)/com.local.bms-notifier" | grep -E "state|last exit code"
 docker stop bms-notifier
-launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # should bring it back
+launchctl kickstart "gui/$(id -u)/com.local.bms-notifier"   # restart path
 curl -s http://localhost:7654/healthz
 ```
 
-Logs: `/tmp/bms-notifier.log` and `/tmp/bms-notifier.err`.
-
-Notes:
-
-- The agent runs a copy of `deploy/autostart.sh` from `~/Library/Application Support/bms-notifier/`. macOS blocks launchd-spawned processes from reading external volumes, so the job must not touch a repo kept on an external drive. It only talks to Docker (`docker start bms-notifier`). Runtime data is on internal disk (`~/docker/drive/bms`), so booting does not depend on the external drive.
-- Because of that, the agent can start an **existing** container but cannot recreate one. After `docker compose down`, run `docker compose up -d` once from a terminal.
-- Code/`Dockerfile`/`.env` changes still need `docker compose up -d --build`; the agent never rebuilds.
+Logs: `/tmp/bms-notifier.log`, `/tmp/bms-notifier.err`, and `~/Library/Application Support/bms-notifier/compose.log` when the agent has to recreate the container.
 
 ### Notification rules
 
